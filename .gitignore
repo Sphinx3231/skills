@@ -1,0 +1,11 @@
+# Unity generated/regenerable
+NinjaGame/Library/
+NinjaGame/Temp/
+NinjaGame/Obj/
+NinjaGame/Build/
+NinjaGame/Builds/
+NinjaGame/Logs/
+NinjaGame/UserSettings/
+NinjaGame/MemoryCaptures/
+NinjaGame/*.log
+*.log

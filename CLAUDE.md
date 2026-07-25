@@ -75,9 +75,52 @@ fixes, comment edits, renames with no behavior change) — these can be done
 directly by the Director, still logged as a one-line entry in `Docs/Worklog.md`.
 
 ## Project conventions
-(To be filled in as the project takes shape — engine version, folder structure,
-naming conventions, input system choice, etc. Update this section as decisions
-are made rather than letting conventions live only in code.)
+- **Editor version:** Unity `6000.5.5f1` (revision `d16e074b49fd`) — only version
+  installed locally, at `C:\Program Files\Unity\Hub\Editor\6000.5.5f1\Editor\Unity.exe`.
+- **Project location:** the Unity project lives at `NinjaGame/` in this directory
+  (i.e. `C:\Users\El Samaka\OneDrive\Desktop\Claude\NinjaGame`).
+- **Render pipeline:** Built-in Render Pipeline (the `-createProject` default) for
+  now. URP/2D (for dynamic shadow/cover lighting via Light2D, well-suited to
+  stealth gameplay) is deferred to a dedicated future migration task rather than
+  bundled into bootstrap — see `Docs/Tasks/2026-07-25-bootstrap-unity-project.md`.
+- **Assets/ folder layout** (standard Unity convention, adapted for a top-down
+  stealth game):
+  ```
+  Assets/
+    Scripts/
+      Player/          # ninja movement, stealth state (crouch/shadow), input handling
+      AI/              # guard FSM/behavior, perception (vision cones, hearing), patrol/alert states
+      Interaction/     # takedowns, doors, distractions, throwables
+      Systems/         # game manager, save/load, level state, detection meter
+      UI/              # HUD, menus, alert indicators
+      Utils/           # shared helpers, extension methods
+    Editor/            # editor-only scripts, custom inspectors, batch-mode/QA hooks
+    Scenes/
+      Levels/          # actual playable levels
+      Sandbox/         # test/prototype scenes for isolated mechanic testing
+    Prefabs/
+      Player/ Enemies/ Interactables/ Environment/
+    Art/
+      Sprites/ Materials/ Animations/ Shaders/
+    Audio/
+      Music/ SFX/ Ambience/
+    Tilemaps/          # 2D Tilemap level layout
+    Settings/          # ScriptableObject configs — guard patrol data, difficulty tuning, input actions
+    Plugins/           # third-party assets/SDKs, isolated
+    Tests/
+      EditMode/        # pure logic unit tests (detection math, inventory, save data)
+      PlayMode/        # runtime behavior tests
+  ```
+- **Headless smoke-check convention:** `Assets/Editor/Ping.cs` defines a static
+  `Ping.Run()` that logs `PING_OK`. QA verifies the project actually runs (not
+  just compiles) via:
+  ```
+  Unity.exe -batchmode -nographics -projectPath NinjaGame -executeMethod Ping.Run -quit -logFile <log>
+  ```
+  and checks the log for `PING_OK` with a clean exit code.
 
 ## Current status
-Project not yet started — no Unity project has been created in this directory yet.
+Project bootstrapped: the Unity project exists at `NinjaGame/` (Editor `6000.5.5f1`,
+Built-in Render Pipeline) with the full `Assets/` folder structure above in place
+and the `Ping.cs` headless smoke-check script added. No gameplay systems
+(player, AI, interaction, etc.) have been implemented yet.

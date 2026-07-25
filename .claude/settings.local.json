@@ -15,7 +15,13 @@
       "Read(//c/Users/El Samaka/AppData/Local/Temp/UnityBatchTest/**)",
       "Read(//c/Users/El Samaka/AppData/Local/Temp/UnityBatchTest/TestProj/**)",
       "Bash(rm -rf \"/c/Users/El Samaka/AppData/Local/Temp/UnityBatchTest\")",
-      "Read(//c/Users/El Samaka/AppData/Local/Temp//**)"
+      "Read(//c/Users/El Samaka/AppData/Local/Temp//**)",
+      "Bash(\"/c/Program Files/Unity/Hub/Editor/6000.5.5f1/Editor/Unity.exe\" -batchmode -nographics -createProject \"/c/Users/El Samaka/OneDrive/Desktop/Claude/NinjaGame\" -quit -logFile \"/c/Users/El Samaka/OneDrive/Desktop/Claude/NinjaGame_create.log\")",
+      "Bash(echo \"EXIT_CODE=$?\")",
+      "Bash(mkdir -p Scripts/Player Scripts/AI Scripts/Interaction Scripts/Systems Scripts/UI Scripts/Utils Editor Scenes/Levels Scenes/Sandbox Prefabs/Player Prefabs/Enemies Prefabs/Interactables Prefabs/Environment Art/Sprites Art/Materials Art/Animations Art/Shaders Audio/Music Audio/SFX Audio/Ambience Tilemaps Settings Plugins Tests/EditMode Tests/PlayMode)",
+      "Bash(echo \"MKDIR_EXIT=$?\")",
+      "Bash(\"/c/Program Files/Unity/Hub/Editor/6000.5.5f1/Editor/Unity.exe\" -batchmode -nographics -projectPath \"/c/Users/El Samaka/OneDrive/Desktop/Claude/NinjaGame\" -quit -logFile \"/c/Users/El Samaka/OneDrive/Desktop/Claude/NinjaGame_reimport.log\")",
+      "Bash(echo \"---GREP_EXIT=$?\")"
     ]
   }
 }

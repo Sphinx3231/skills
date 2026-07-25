@@ -1,7 +1,7 @@
 # Bootstrap Unity Project
 
 - **Date:** 2026-07-25
-- **Status:** in progress
+- **Status:** in progress (paused before QA — session ended by user request)
 - **Director brief:** No Unity project exists yet in this directory. Create the
   foundational Unity project for the ninja stealth game: correct Editor version,
   an organized folder structure (Scripts, Scenes, Prefabs, Art, Editor, etc.)
@@ -61,11 +61,25 @@ Assets/
 
 ## Approach
 
-(pending)
+- Create the project via `Unity.exe -batchmode -nographics -createProject NinjaGame -quit -logFile <log>` (verified working by Research) rather than via Hub's GUI/template flags, since it's scriptable, reproducible, and headless.
+- **Render pipeline: stay on Built-in for this task**, not URP. URP/2D lighting (Light2D for shadow/cover mechanics) is clearly the better long-term fit for this game, but `-createProject` doesn't produce it, and migrating requires either a Hub template flag (not verified) or manual package manifest changes (untested, adds risk to a bootstrap task). Tradeoff: defer the URP migration to a dedicated future task once shadow/cover gameplay is actually being built, so it can be researched and QA'd on its own rather than bundled into project setup. Bootstrapping stays low-risk and verifiable.
+- Folder structure: adopt Research's proposed layout under `Assets/` as-is — it's a standard, well-justified Unity convention with stealth-specific subfolders (AI/perception, Interaction/takedowns) already layered in. No changes needed.
+- Keep the `Assets/Editor/Ping.cs` headless-verification script from Research's throwaway test as the permanent QA smoke-check mechanism (`-executeMethod Ping.Run`), since it's the only proven way to verify "it actually runs," not just "it compiles," in this headless environment.
+- Update `CLAUDE.md`'s Project Conventions and Current Status sections once the project exists, per the task's definition of done.
 
 ## Implementation
 
-(pending)
+Implementation Agent executed the approved approach exactly:
+
+1. Created the project: `Unity.exe -batchmode -nographics -createProject "NinjaGame" -quit -logFile NinjaGame_create.log` → exit 0, "Batchmode quit successfully invoked."
+2. Created all 22 target directories under `NinjaGame/Assets/` per the Research layout (Scripts/{Player,AI,Interaction,Systems,UI,Utils}, Editor, Scenes/{Levels,Sandbox}, Prefabs/{Player,Enemies,Interactables,Environment}, Art/{Sprites,Materials,Animations,Shaders}, Audio/{Music,SFX,Ambience}, Tilemaps, Settings, Plugins, Tests/{EditMode,PlayMode}) — verified present via `find`.
+3. Added `NinjaGame/Assets/Editor/Ping.cs` (static `Ping.Run()` logging `PING_OK`) as the permanent headless smoke-check script.
+4. Reimported via `Unity.exe -batchmode -nographics -projectPath NinjaGame -quit -logFile NinjaGame_reimport.log` → exit 0, no `error CS` matches — script compiles clean.
+5. Updated `CLAUDE.md`'s "Project conventions" and "Current status" sections only (left "What this is"/"Working model" untouched) to document Editor version, project location, render pipeline decision, folder layout, and the Ping.cs smoke-check convention.
+
+Files touched: `NinjaGame/Assets/Editor/Ping.cs`, `CLAUDE.md`, `NinjaGame_create.log`, `NinjaGame_reimport.log`.
+
+**Not yet done:** the actual `-executeMethod Ping.Run` smoke invocation (Implementation deliberately left this for QA, per the pipeline split) — so "PING_OK" has not yet been observed from a real headless run of the finished project. QA has not run.
 
 ## QA iterations
 
