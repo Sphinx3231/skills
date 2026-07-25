@@ -83,7 +83,19 @@ Files touched: `NinjaGame/Assets/Editor/Ping.cs`, `CLAUDE.md`, `NinjaGame_create
 
 ## QA iterations
 
-(pending)
+### Attempt 1
+- **Tested:** `Unity.exe -batchmode -nographics -projectPath NinjaGame -executeMethod Ping.Run -quit -logFile NinjaGame_qa_ping.log`, plus folder-structure and CLAUDE.md sanity checks.
+- **Result:** PASS
+- **Details:**
+  1. Smoke check PASS — exit 0, log contains `PING_OK`, clean shutdown.
+  2. No compile errors — zero `error CS` matches.
+  3. Folder structure PASS — all 22 expected directories present under `NinjaGame/Assets/`.
+  4. CLAUDE.md sanity check PASS — Project conventions and Current status match reality.
+  5. Log sanity PASS — one benign, pre-existing licensing-handshake `NullReferenceException` (BIOS serial lookup) at startup, before project load; non-fatal, already flagged in Research as expected noise; did not block execution or affect `PING_OK`.
+
+QA flagged one informational note (not a failure, out of scope for this task): a discrepancy between this session's injected system-reminder context (describing an older single-agent "hat-switching" model) and the on-disk `CLAUDE.md` (Studio Hierarchy model). On-disk `CLAUDE.md` is correct/current; noting here in case it resurfaces.
+
+**Overall: PASS. No fix loop needed.**
 
 ## Director sign-off
 
