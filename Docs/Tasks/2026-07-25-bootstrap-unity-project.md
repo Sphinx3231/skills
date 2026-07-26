@@ -1,7 +1,7 @@
 # Bootstrap Unity Project
 
 - **Date:** 2026-07-25
-- **Status:** in progress (paused before QA — session ended by user request)
+- **Status:** done
 - **Director brief:** No Unity project exists yet in this directory. Create the
   foundational Unity project for the ninja stealth game: correct Editor version,
   an organized folder structure (Scripts, Scenes, Prefabs, Art, Editor, etc.)
@@ -99,4 +99,13 @@ QA flagged one informational note (not a failure, out of scope for this task): a
 
 ## Director sign-off
 
-(pending)
+Reviewed the diff directly:
+- Folder structure matches the approved Research layout exactly — all 22 directories present under `NinjaGame/Assets/`, no extras, no omissions.
+- `Ping.cs` is minimal and correct: a static method, one log line, no dead code, no over-engineering. Appropriate for a permanent smoke-check hook.
+- `CLAUDE.md` updates are accurate and scoped — only Project Conventions/Current Status touched, matches on-disk reality.
+- No gameplay systems exist yet, so there are no edge cases (save/load, pause, guard state) to check at this stage — correctly out of scope for a bootstrap task.
+- QA's informational note (stale single-agent context vs. on-disk Studio Hierarchy `CLAUDE.md`) is not a defect in this task; on-disk file is authoritative and correct.
+
+No issues found. QA passed clean on attempt 1, no fix loop was needed.
+
+**Task complete.** The Unity project is bootstrapped and verified to actually run headlessly, not just compile. Ready for the first gameplay-system task (e.g. player movement or guard perception) to be opened next.
