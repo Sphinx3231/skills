@@ -6,6 +6,7 @@ when it's closed (status: done).
 
 | Date | Task | Status | Log |
 |---|---|---|---|
+| 2026-07-26 | Player movement | done | [Docs/Tasks/2026-07-26-player-movement.md](Tasks/2026-07-26-player-movement.md) |
 | 2026-07-25 | Bootstrap Unity project | done | [Docs/Tasks/2026-07-25-bootstrap-unity-project.md](Tasks/2026-07-25-bootstrap-unity-project.md) |
 
 **Backup policy:** no git/cron backup mechanism in use (declined). Durability relies
