@@ -3,6 +3,7 @@
     "rootNamespace": "",
     "references": [
         "NinjaGame.Player",
+        "NinjaGame.AI",
         "Unity.InputSystem",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"

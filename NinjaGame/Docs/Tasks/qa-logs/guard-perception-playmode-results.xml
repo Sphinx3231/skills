@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="10" result="Failed(Child)" total="10" passed="8" failed="2" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-07-27 01:24:30Z" end-time="2026-07-27 01:24:30Z" duration="0.3822667">
+  <test-suite type="TestSuite" id="1020" name="NinjaGame" fullname="NinjaGame" runstate="Runnable" testcasecount="10" result="Failed" site="Child" start-time="2026-07-27 01:24:30Z" end-time="2026-07-27 01:24:30Z" duration="0.382267" total="10" passed="8" failed="2" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="1014" name="NinjaGame.Tests.PlayMode.dll" fullname="C:/Users/El Samaka/OneDrive/Desktop/Claude/NinjaGame/Library/ScriptAssemblies/NinjaGame.Tests.PlayMode.dll" runstate="Runnable" testcasecount="10" result="Failed" site="Child" start-time="2026-07-27 01:24:30Z" end-time="2026-07-27 01:24:30Z" duration="0.367641" total="10" passed="8" failed="2" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="3852" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="1015" name="NinjaGame" fullname="NinjaGame" runstate="Runnable" testcasecount="10" result="Failed" site="Child" start-time="2026-07-27 01:24:30Z" end-time="2026-07-27 01:24:30Z" duration="0.367083" total="10" passed="8" failed="2" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="1016" name="Tests" fullname="NinjaGame.Tests" runstate="Runnable" testcasecount="10" result="Failed" site="Child" start-time="2026-07-27 01:24:30Z" end-time="2026-07-27 01:24:30Z" duration="0.366734" total="10" passed="8" failed="2" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="1017" name="PlayMode" fullname="NinjaGame.Tests.PlayMode" runstate="Runnable" testcasecount="10" result="Failed" site="Child" start-time="2026-07-27 01:24:30Z" end-time="2026-07-27 01:24:30Z" duration="0.366365" total="10" passed="8" failed="2" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1001" name="GuardPerceptionTests" fullname="NinjaGame.Tests.PlayMode.GuardPerceptionTests" classname="NinjaGame.Tests.PlayMode.GuardPerceptionTests" runstate="Runnable" testcasecount="5" result="Passed" start-time="2026-07-27 01:24:30Z" end-time="2026-07-27 01:24:30Z" duration="0.252513" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1002" name="CheckDetection_ReturnsFull_ForUnconcealedPlayer_InConeRangeAndLineOfSight" fullname="NinjaGame.Tests.PlayMode.GuardPerceptionTests.CheckDetection_ReturnsFull_ForUnconcealedPlayer_InConeRangeAndLineOfSight" methodname="CheckDetection_ReturnsFull_ForUnconcealedPlayer_InConeRangeAndLineOfSight" classname="NinjaGame.Tests.PlayMode.GuardPerceptionTests" runstate="Runnable" seed="1408078532" result="Passed" start-time="2026-07-27 01:24:30Z" end-time="2026-07-27 01:24:30Z" duration="0.229137" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1003" name="CheckDetection_ReturnsNone_WhenOccludedByObstacleLayerCollider" fullname="NinjaGame.Tests.PlayMode.GuardPerceptionTests.CheckDetection_ReturnsNone_WhenOccludedByObstacleLayerCollider" methodname="CheckDetection_ReturnsNone_WhenOccludedByObstacleLayerCollider" classname="NinjaGame.Tests.PlayMode.GuardPerceptionTests" runstate="Runnable" seed="242141783" result="Passed" start-time="2026-07-27 01:24:30Z" end-time="2026-07-27 01:24:30Z" duration="0.002397" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1004" name="CheckDetection_ReturnsNone_WhenPlayerIsConcealed" fullname="NinjaGame.Tests.PlayMode.GuardPerceptionTests.CheckDetection_ReturnsNone_WhenPlayerIsConcealed" methodname="CheckDetection_ReturnsNone_WhenPlayerIsConcealed" classname="NinjaGame.Tests.PlayMode.GuardPerceptionTests" runstate="Runnable" seed="1174905893" result="Passed" start-time="2026-07-27 01:24:30Z" end-time="2026-07-27 01:24:30Z" duration="0.001082" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1005" name="CheckDetection_ReturnsNone_WhenPlayerOutOfRange" fullname="NinjaGame.Tests.PlayMode.GuardPerceptionTests.CheckDetection_ReturnsNone_WhenPlayerOutOfRange" methodname="CheckDetection_ReturnsNone_WhenPlayerOutOfRange" classname="NinjaGame.Tests.PlayMode.GuardPerceptionTests" runstate="Runnable" seed="646146939" result="Passed" start-time="2026-07-27 01:24:30Z" end-time="2026-07-27 01:24:30Z" duration="0.000490" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1006" name="CheckDetection_ReturnsPartial_ForPlayerInPeripheralConeOnly" fullname="NinjaGame.Tests.PlayMode.GuardPerceptionTests.CheckDetection_ReturnsPartial_ForPlayerInPeripheralConeOnly" methodname="CheckDetection_ReturnsPartial_ForPlayerInPeripheralConeOnly" classname="NinjaGame.Tests.PlayMode.GuardPerceptionTests" runstate="Runnable" seed="1843008424" result="Passed" start-time="2026-07-27 01:24:30Z" end-time="2026-07-27 01:24:30Z" duration="0.000814" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1007" name="GuardStateMachineTests" fullname="NinjaGame.Tests.PlayMode.GuardStateMachineTests" classname="NinjaGame.Tests.PlayMode.GuardStateMachineTests" runstate="Runnable" testcasecount="2" result="Failed" site="Child" start-time="2026-07-27 01:24:30Z" end-time="2026-07-27 01:24:30Z" duration="0.047218" total="2" passed="0" failed="2" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1008" name="Patrol_TransitionsToAlert_OnDirectSightOfUnconcealedPlayer" fullname="NinjaGame.Tests.PlayMode.GuardStateMachineTests.Patrol_TransitionsToAlert_OnDirectSightOfUnconcealedPlayer" methodname="Patrol_TransitionsToAlert_OnDirectSightOfUnconcealedPlayer" classname="NinjaGame.Tests.PlayMode.GuardStateMachineTests" runstate="Runnable" seed="801743881" result="Failed" start-time="2026-07-27 01:24:30Z" end-time="2026-07-27 01:24:30Z" duration="0.025032" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  Guard should start in Patrol.
+  Expected: Patrol
+  But was:  Alert
+]]></message>
+                  <stack-trace><![CDATA[at NinjaGame.Tests.PlayMode.GuardStateMachineTests+<Patrol_TransitionsToAlert_OnDirectSightOfUnconcealedPlayer>d__6.MoveNext () [0x00029] in C:\Users\El Samaka\OneDrive\Desktop\Claude\NinjaGame\Assets\Tests\PlayMode\GuardStateMachineTests.cs:58
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in .\Library\PackageCache\com.unity.test-framework@1405238725ab\UnityEngine.TestRunner\NUnitExtensions\Attributes\TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+              </test-case>
+              <test-case id="1009" name="Suspicious_DecaysToPatrol_AfterTimerElapses_WithNoRedetection" fullname="NinjaGame.Tests.PlayMode.GuardStateMachineTests.Suspicious_DecaysToPatrol_AfterTimerElapses_WithNoRedetection" methodname="Suspicious_DecaysToPatrol_AfterTimerElapses_WithNoRedetection" classname="NinjaGame.Tests.PlayMode.GuardStateMachineTests" runstate="Runnable" seed="1212381989" result="Failed" start-time="2026-07-27 01:24:30Z" end-time="2026-07-27 01:24:30Z" duration="0.018177" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  Guard should enter Suspicious on a partial signal.
+  Expected: Suspicious
+  But was:  Alert
+]]></message>
+                  <stack-trace><![CDATA[at NinjaGame.Tests.PlayMode.GuardStateMachineTests+<Suspicious_DecaysToPatrol_AfterTimerElapses_WithNoRedetection>d__7.MoveNext () [0x0009b] in C:\Users\El Samaka\OneDrive\Desktop\Claude\NinjaGame\Assets\Tests\PlayMode\GuardStateMachineTests.cs:82
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in .\Library\PackageCache\com.unity.test-framework@1405238725ab\UnityEngine.TestRunner\NUnitExtensions\Attributes\TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1010" name="PlayerMovementTests" fullname="NinjaGame.Tests.PlayMode.PlayerMovementTests" classname="NinjaGame.Tests.PlayMode.PlayerMovementTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-07-27 01:24:30Z" end-time="2026-07-27 01:24:30Z" duration="0.064656" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1012" name="PlayerDoesNotMove_WhenInputIsZero" fullname="NinjaGame.Tests.PlayMode.PlayerMovementTests.PlayerDoesNotMove_WhenInputIsZero" methodname="PlayerDoesNotMove_WhenInputIsZero" classname="NinjaGame.Tests.PlayMode.PlayerMovementTests" runstate="Runnable" seed="1781108707" result="Passed" start-time="2026-07-27 01:24:30Z" end-time="2026-07-27 01:24:30Z" duration="0.019118" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1011" name="PlayerMoves_InExpectedDirection_WhenInputSet" fullname="NinjaGame.Tests.PlayMode.PlayerMovementTests.PlayerMoves_InExpectedDirection_WhenInputSet" methodname="PlayerMoves_InExpectedDirection_WhenInputSet" classname="NinjaGame.Tests.PlayMode.PlayerMovementTests" runstate="Runnable" seed="485219130" result="Passed" start-time="2026-07-27 01:24:30Z" end-time="2026-07-27 01:24:30Z" duration="0.042910" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1013" name="ToggleCrouch_FlipsIsConcealed_AndFiresEvent" fullname="NinjaGame.Tests.PlayMode.PlayerMovementTests.ToggleCrouch_FlipsIsConcealed_AndFiresEvent" methodname="ToggleCrouch_FlipsIsConcealed_AndFiresEvent" classname="NinjaGame.Tests.PlayMode.PlayerMovementTests" runstate="Runnable" seed="1467373528" result="Passed" start-time="2026-07-27 01:24:30Z" end-time="2026-07-27 01:24:30Z" duration="0.001336" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Saving results to: Docs/Tasks/qa-logs/guard-perception-playmode-results.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>
