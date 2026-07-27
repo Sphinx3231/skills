@@ -1,5 +1,6 @@
 using System.IO;
 using NinjaGame.AI;
+using NinjaGame.Interaction;
 using NinjaGame.Player;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -14,12 +15,14 @@ namespace NinjaGame.Editor
     /// Unity.exe -batchmode -nographics -projectPath NinjaGame
     ///   -executeMethod NinjaGame.Editor.SandboxSceneBuilder.BuildPlayerMovementSandbox
     ///   -quit -logFile <log>
-    /// (or BuildGuardPerceptionSandbox for the guard-focused scene)
+    /// (or BuildGuardPerceptionSandbox for the guard-focused scene, or
+    /// BuildTakedownSandbox for the stealth-takedown scene)
     /// </summary>
     public static class SandboxSceneBuilder
     {
         private const string ScenePath = "Assets/Scenes/Sandbox/PlayerMovementSandbox.unity";
         private const string GuardScenePath = "Assets/Scenes/Sandbox/GuardPerceptionSandbox.unity";
+        private const string TakedownScenePath = "Assets/Scenes/Sandbox/TakedownSandbox.unity";
         private const string PlaceholderSpritePath = "Assets/Art/Sprites/PlaceholderSquare.png";
         private const string ObstacleLayerName = "Obstacle";
 
@@ -75,6 +78,49 @@ namespace NinjaGame.Editor
             Debug.Log(saved ? "GUARD_SANDBOX_SCENE_BUILT_OK" : "GUARD_SANDBOX_SCENE_BUILD_FAILED");
         }
 
+        /// <summary>
+        /// Builds a dedicated Sandbox scene for the stealth-takedown interaction:
+        /// a single wall (kept for scene-composition parity with the other Sandbox
+        /// scenes; not load-bearing for the takedown itself), and a Patrol-state
+        /// guard with the player positioned within PlayerTakedown's interactionRange
+        /// and directly behind the guard's facing direction, so a takedown is
+        /// immediately reachable in Play Mode. Kept separate from
+        /// GuardPerceptionSandbox so that task's scene/QA baseline is untouched.
+        /// </summary>
+        public static void BuildTakedownSandbox()
+        {
+            Sprite placeholderSprite = GetOrCreatePlaceholderSprite();
+
+            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+            int obstacleLayer = LayerMask.NameToLayer(ObstacleLayerName);
+            if (obstacleLayer < 0)
+            {
+                Debug.LogError("TAKEDOWN_SANDBOX_SCENE_BUILD_FAILED: 'Obstacle' layer not found in TagManager.");
+                return;
+            }
+
+            GameObject player = CreatePlayer(placeholderSprite);
+            player.AddComponent<PlayerTakedown>();
+
+            CreateWall("Wall_North", new Vector2(0f, 6f), new Vector2(8f, 1f), obstacleLayer);
+
+            GameObject guard = CreateGuard(placeholderSprite, player, obstacleLayer);
+
+            // Guard's default FacingDirection (set by GuardPerception's serialized
+            // default) is Vector2.up, unchanged here since the scene isn't run
+            // through Play Mode at build time. Position the player 1 unit directly
+            // "south" of the guard (opposite the facing direction) so it sits
+            // within PlayerTakedown's default 1.5-unit interactionRange and within
+            // the default 60-degree behindAngleThreshold of directly-behind.
+            player.transform.position = guard.transform.position + new Vector3(0f, -1f, 0f);
+
+            Directory.CreateDirectory(Path.GetDirectoryName(TakedownScenePath));
+            bool saved = EditorSceneManager.SaveScene(scene, TakedownScenePath);
+
+            Debug.Log(saved ? "TAKEDOWN_SANDBOX_SCENE_BUILT_OK" : "TAKEDOWN_SANDBOX_SCENE_BUILD_FAILED");
+        }
+
         private static GameObject CreatePlayer(Sprite sprite)
         {
             var player = new GameObject("Player");
@@ -115,7 +161,7 @@ namespace NinjaGame.Editor
             wall.transform.localScale = new Vector3(size.x, size.y, 1f);
         }
 
-        private static void CreateGuard(Sprite sprite, GameObject player, int obstacleLayer)
+        private static GameObject CreateGuard(Sprite sprite, GameObject player, int obstacleLayer)
         {
             var waypointA = new GameObject("Guard_Waypoint_A");
             waypointA.transform.position = new Vector2(-3f, -3f);
@@ -148,6 +194,8 @@ namespace NinjaGame.Editor
 
             var collider = guard.AddComponent<BoxCollider2D>();
             collider.size = Vector2.one;
+
+            return guard;
         }
 
         private static Sprite GetOrCreatePlaceholderSprite()

@@ -6,6 +6,7 @@ when it's closed (status: done).
 
 | Date | Task | Status | Log |
 |---|---|---|---|
+| 2026-07-27 | Stealth takedown / guard interaction | done | [Docs/Tasks/2026-07-27-stealth-takedown.md](Tasks/2026-07-27-stealth-takedown.md) |
 | 2026-07-26 | Guard perception & patrol/alert states | done | [Docs/Tasks/2026-07-26-guard-perception.md](Tasks/2026-07-26-guard-perception.md) |
 | 2026-07-26 | Player movement | done | [Docs/Tasks/2026-07-26-player-movement.md](Tasks/2026-07-26-player-movement.md) |
 | 2026-07-25 | Bootstrap Unity project | done | [Docs/Tasks/2026-07-25-bootstrap-unity-project.md](Tasks/2026-07-25-bootstrap-unity-project.md) |
