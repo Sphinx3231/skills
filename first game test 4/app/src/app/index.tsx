@@ -8,8 +8,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AmbientGlow } from '@/components/ambient-glow';
 import { FadeInUp } from '@/components/fade-in-up';
-import { FoxCompanion, type FoxMood } from '@/components/fox-companion';
 import { FoxMoment } from '@/components/fox-moment';
+import { Foxxy } from '@/components/foxxy';
 import { PawPrint } from '@/components/paw-print';
 import { PressableScale } from '@/components/pressable-scale';
 import { TailRing } from '@/components/tail-ring';
@@ -20,7 +20,8 @@ import { useFoxMomentQueue } from '@/hooks/use-fox-moment-queue';
 import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
-import { bucketLogs, foxxyState } from '@/lib/dashboard-logic';
+import { bucketLogs, foxxyState, type FoxMood } from '@/lib/dashboard-logic';
+import { idleKindForDashboard } from '@/lib/fox-idle';
 import { hasWavedThisSession, markWavedThisSession, momentForMoodTransition } from '@/lib/fox-moments';
 
 export default function DashboardScreen() {
@@ -129,7 +130,7 @@ export default function DashboardScreen() {
                   {activeMoment ? (
                     <FoxMoment kind={activeMoment} size={116} onDone={handleMomentDone} />
                   ) : (
-                    <FoxCompanion size={116} mood={mood} />
+                    <Foxxy kind={idleKindForDashboard(mood, goal - calories, goal)} size={116} />
                   )}
                   <View style={styles.foxSpeech}>
                     <ThemedText type="smallBold" style={{ color: theme.bark }}>

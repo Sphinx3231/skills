@@ -42,6 +42,18 @@ describe('CompanionScreen', () => {
     expect(screen.getByText('day streak')).toBeTruthy();
   });
 
+  test('falls back to a zero streak when the API response omits streakCount', async () => {
+    mockedApi.getCompanion.mockResolvedValue(
+      companion({ streakCount: undefined as unknown as number })
+    );
+    mockedApi.getBillingStatus.mockResolvedValue(billing({ status: 'active' }));
+
+    await render(<CompanionScreen />);
+
+    await waitFor(() => expect(screen.getByText('day streak')).toBeTruthy());
+    expect(screen.getByText('0')).toBeTruthy();
+  });
+
   test('shows the trial banner while trialing, hides it once active', async () => {
     mockedApi.getCompanion.mockResolvedValue(companion());
     mockedApi.getBillingStatus.mockResolvedValue(billing({ status: 'trialing', daysLeft: 3 }));
@@ -97,20 +109,27 @@ describe('CompanionScreen', () => {
     );
     mockedApi.getBillingStatus.mockResolvedValue(billing({ status: 'active' }));
 
-    await render(<CompanionScreen />);
+    const { toJSON } = await render(<CompanionScreen />);
 
-    // The celebrate FoxMoment replaces the hero FoxCompanion while it plays;
-    // its accessibility label is set on the GIF's <Image>, FoxCompanion's isn't.
-    await waitFor(() => expect(screen.getByLabelText('Foxxy')).toBeTruthy());
+    // The celebrate FoxMoment replaces the hero Foxxy idle GIF while it
+    // plays; both set the same "Foxxy" accessibility label everywhere Foxxy
+    // appears (including the wardrobe grid), so the label alone can't
+    // distinguish them. Assert on the specific GIF asset the celebrate
+    // moment loads instead.
+    await waitFor(() => expect(JSON.stringify(toJSON())).toContain('fox_03_celebrate'));
   });
 
   test('does not play a FoxMoment when nothing was newly unlocked', async () => {
     mockedApi.getCompanion.mockResolvedValue(companion({ unlockedItems: [], newlyUnlocked: [] }));
     mockedApi.getBillingStatus.mockResolvedValue(billing({ status: 'active' }));
 
-    await render(<CompanionScreen />);
+    const { toJSON } = await render(<CompanionScreen />);
 
     await waitFor(() => expect(screen.getByText('day streak')).toBeTruthy());
-    expect(screen.queryByLabelText('Foxxy')).toBeNull();
+    // Mirrors the positive assertion above: Foxxy's idle GIF renders
+    // regardless (never a still frame under normal use) and shares the
+    // same "Foxxy" accessibility label, so the real negative signal is
+    // that the celebrate moment's specific GIF asset never loaded.
+    expect(JSON.stringify(toJSON())).not.toContain('fox_03_celebrate');
   });
 });

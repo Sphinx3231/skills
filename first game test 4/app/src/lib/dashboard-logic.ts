@@ -1,7 +1,14 @@
 import type { FoodLog } from '@/lib/api';
-import type { FoxMood } from '@/components/fox-companion';
 
 export type MealBucket = { key: string; label: string; logs: FoodLog[] };
+
+/**
+ * empty     — morning, nothing logged yet
+ * onTarget  — hit the day's macros
+ * over      — went past the calorie goal
+ * neutral   — not derived from logs; wardrobe-preview-only idle pose
+ */
+export type FoxMood = 'empty' | 'onTarget' | 'over' | 'neutral';
 
 export function bucketLogs(logs: FoodLog[]): MealBucket[] {
   const buckets: MealBucket[] = [

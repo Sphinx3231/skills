@@ -6,8 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AmbientGlow } from '@/components/ambient-glow';
 import { FadeInUp } from '@/components/fade-in-up';
-import { FoxCompanion } from '@/components/fox-companion';
 import { FoxMoment } from '@/components/fox-moment';
+import { Foxxy } from '@/components/foxxy';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, CardShadow, CardShadowSoft, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -15,6 +15,7 @@ import { useFoxMomentQueue } from '@/hooks/use-fox-moment-queue';
 import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
+import { idleKindForCompanion } from '@/lib/fox-idle';
 
 const UNLOCK_LABELS: Record<string, string> = {
   scarf: 'Cozy scarf',
@@ -94,9 +95,9 @@ export default function CompanionScreen() {
                   {activeMoment ? (
                     <FoxMoment kind={activeMoment} size={200} onDone={handleMomentDone} />
                   ) : (
-                    <FoxCompanion
+                    <Foxxy
+                      kind={idleKindForCompanion(companion?.streakCount ?? 0)}
                       size={200}
-                      mood={(companion?.streakCount ?? 0) > 0 ? 'onTarget' : 'neutral'}
                       wearingScarf={!!companion?.unlockedItems.includes('scarf')}
                       wearingHat={!!companion?.unlockedItems.includes('hat')}
                       wearingBackpack={!!companion?.unlockedItems.includes('backpack')}
@@ -136,9 +137,9 @@ export default function CompanionScreen() {
                         type={unlocked ? 'backgroundSelected' : 'backgroundElement'}
                         style={[styles.wardrobeItem, CardShadowSoft]}>
                         <ThemedView style={{ opacity: unlocked ? 1 : 0.35 }}>
-                          <FoxCompanion
+                          <Foxxy
+                            kind="stand"
                             size={64}
-                            mood="neutral"
                             wearingScarf={item === 'scarf'}
                             wearingHat={item === 'hat'}
                             wearingBackpack={item === 'backpack'}
