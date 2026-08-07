@@ -1,4 +1,4 @@
-import type { FoxMood } from '@/components/fox-companion';
+import type { FoxMood } from '@/lib/dashboard-logic';
 
 export type FoxMomentKind = 'wave' | 'sleepy' | 'celebrate' | 'resting' | 'order';
 

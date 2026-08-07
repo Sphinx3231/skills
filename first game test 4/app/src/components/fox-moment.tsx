@@ -12,10 +12,10 @@ const SOURCES: Record<FoxMomentKind, ImageSource> = {
 };
 
 /**
- * A one-shot GIF moment layered around FoxCompanion for a specific event
- * (wave/sleepy/celebrate/resting/order). Plays once, then calls onDone so the
- * caller can swap back to the persistent hand-drawn SVG fox — this never
- * replaces FoxCompanion itself.
+ * A one-shot GIF moment layered around Foxxy's looping idle GIF for a
+ * specific event (wave/sleepy/celebrate/resting/order). Plays once, then
+ * calls onDone so the caller can swap back to the persistent idle GIF —
+ * this never replaces Foxxy itself.
  */
 export function FoxMoment({
   kind,
