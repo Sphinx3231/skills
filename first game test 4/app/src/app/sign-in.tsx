@@ -63,7 +63,11 @@ export default function SignInScreen() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [signUpPassword, setSignUpPassword] = useState('');
   const [showSignUpPassword, setShowSignUpPassword] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
+  // 'signUp' = post-signup email verification; 'signInTrust' = Clerk's
+  // Client Trust check on sign-in from an unrecognized device/browser
+  // (status 'needs_client_trust') — same code-entry UI, different resource
+  // methods and finalize target underneath.
+  const [verifying, setVerifying] = useState<'signUp' | 'signInTrust' | null>(null);
   const [code, setCode] = useState('');
 
   useEffect(() => {
@@ -79,7 +83,8 @@ export default function SignInScreen() {
   function resetToStart() {
     setError(null);
     setSignInStep('identifier');
-    setIsVerifying(false);
+    setVerifying(null);
+    setCode('');
   }
 
   async function submitSignIn() {
@@ -97,6 +102,38 @@ export default function SignInScreen() {
       const { error: signInError } = await signIn.password({ identifier, password: signInPassword });
       if (signInError) {
         setError(signInError.message ?? 'Could not sign in with those details.');
+        return;
+      }
+
+      // Clerk's Client Trust check: a correct password from an
+      // unrecognized device/browser lands here instead of 'complete'.
+      // finalize() would throw ("Cannot finalize sign-in without a
+      // created session") if called without resolving this first.
+      if (signIn.status === 'needs_client_trust') {
+        const { error: sendError } = await signIn.mfa.sendEmailCode();
+        if (sendError) {
+          setError(sendError.message ?? 'Could not send a verification code.');
+          return;
+        }
+        setVerifying('signInTrust');
+        return;
+      }
+
+      const { error: finalizeError } = await signIn.finalize();
+      if (finalizeError) setError(finalizeError.message ?? 'Could not complete sign-in.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function submitSignInTrustVerification() {
+    if (!signIn) return;
+    setError(null);
+    setBusy('submit');
+    try {
+      const { error: verifyError } = await signIn.mfa.verifyEmailCode({ code });
+      if (verifyError) {
+        setError(verifyError.message ?? 'That code didn’t work — try again.');
         return;
       }
       const { error: finalizeError } = await signIn.finalize();
@@ -128,7 +165,7 @@ export default function SignInScreen() {
         setError(sendError.message ?? 'Could not send a verification code.');
         return;
       }
-      setIsVerifying(true);
+      setVerifying('signUp');
     } finally {
       setBusy(null);
     }
@@ -196,12 +233,12 @@ export default function SignInScreen() {
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
-          {isVerifying ? (
+          {verifying ? (
             <VerifyStep
-              email={signUpEmail}
+              email={verifying === 'signUp' ? signUpEmail : identifier}
               code={code}
               onChangeCode={setCode}
-              onSubmit={submitVerification}
+              onSubmit={verifying === 'signUp' ? submitVerification : submitSignInTrustVerification}
               error={error}
               busy={busy === 'submit'}
             />

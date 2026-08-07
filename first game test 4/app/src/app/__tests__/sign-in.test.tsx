@@ -3,15 +3,28 @@ import SignInScreen from '../sign-in';
 
 const mockSignInPassword = jest.fn();
 const mockSignInFinalize = jest.fn();
+const mockSignInSendEmailCode = jest.fn();
+const mockSignInVerifyEmailCode = jest.fn();
 const mockSignUpPassword = jest.fn();
 const mockSendEmailCode = jest.fn();
 const mockVerifyEmailCode = jest.fn();
 const mockSignUpFinalize = jest.fn();
 const mockStartSSOFlow = jest.fn();
 
+// A plain field (not a getter) so tests can flip it directly — mirrors how
+// the real SignIn resource's `status` reflects its latest server response.
+let mockSignInStatus: string | undefined;
+
 jest.mock('@clerk/expo', () => ({
   useSignIn: () => ({
-    signIn: { password: mockSignInPassword, finalize: mockSignInFinalize },
+    signIn: {
+      password: mockSignInPassword,
+      finalize: mockSignInFinalize,
+      mfa: { sendEmailCode: mockSignInSendEmailCode, verifyEmailCode: mockSignInVerifyEmailCode },
+      get status() {
+        return mockSignInStatus;
+      },
+    },
   }),
   useSignUp: () => ({
     signUp: {
@@ -39,8 +52,11 @@ async function goToPasswordStep(identifier = 'fox@example.com') {
 }
 
 beforeEach(() => {
+  mockSignInStatus = undefined;
   mockSignInPassword.mockResolvedValue({ error: null });
   mockSignInFinalize.mockResolvedValue({ error: null });
+  mockSignInSendEmailCode.mockResolvedValue({ error: null });
+  mockSignInVerifyEmailCode.mockResolvedValue({ error: null });
   mockSignUpPassword.mockResolvedValue({ error: null });
   mockSendEmailCode.mockResolvedValue({ error: null });
   mockVerifyEmailCode.mockResolvedValue({ error: null });
@@ -95,6 +111,29 @@ describe('SignInScreen — sign in', () => {
 
     await waitFor(() => expect(mockSignInFinalize).toHaveBeenCalled());
     expect(mockSignInPassword).toHaveBeenCalledWith({ identifier: 'fox@example.com', password: 'longenoughpw' });
+  });
+
+  test('needs_client_trust sends an email code and shows the verify step instead of finalizing', async () => {
+    mockSignInStatus = 'needs_client_trust';
+    await render(<SignInScreen />);
+    await goToPasswordStep();
+    await fireEvent.changeText(screen.getByPlaceholderText('Create a password'), 'longenoughpw');
+    await fireEvent.press(screen.getByText('Continue'));
+
+    await waitFor(() => expect(mockSignInSendEmailCode).toHaveBeenCalled());
+    expect(mockSignInFinalize).not.toHaveBeenCalled();
+    expect(screen.getByText('Check your email')).toBeTruthy();
+  });
+
+  test('a needs_client_trust sendEmailCode error is shown', async () => {
+    mockSignInStatus = 'needs_client_trust';
+    mockSignInSendEmailCode.mockResolvedValue({ error: { message: 'Could not send code' } });
+    await render(<SignInScreen />);
+    await goToPasswordStep();
+    await fireEvent.changeText(screen.getByPlaceholderText('Create a password'), 'longenoughpw');
+    await fireEvent.press(screen.getByText('Continue'));
+
+    await waitFor(() => expect(screen.getByText('Could not send code')).toBeTruthy());
   });
 
   test('a wrong-password error is shown and finalize is not called', async () => {
@@ -241,6 +280,45 @@ describe('SignInScreen — verify step', () => {
     await reachVerifyStep();
     await fireEvent.press(screen.getByText('Verify'));
     expect(mockVerifyEmailCode).not.toHaveBeenCalled();
+  });
+});
+
+describe('SignInScreen — needs_client_trust verify step', () => {
+  async function reachTrustVerifyStep() {
+    mockSignInStatus = 'needs_client_trust';
+    await render(<SignInScreen />);
+    await goToPasswordStep();
+    await fireEvent.changeText(screen.getByPlaceholderText('Create a password'), 'longenoughpw');
+    await fireEvent.press(screen.getByText('Continue'));
+    await waitFor(() => expect(screen.getByText('Check your email')).toBeTruthy());
+  }
+
+  test('correct code verifies and finalizes the sign-in', async () => {
+    await reachTrustVerifyStep();
+    await fireEvent.changeText(screen.getByPlaceholderText('123456'), '424242');
+    await fireEvent.press(screen.getByText('Verify'));
+
+    await waitFor(() => expect(mockSignInFinalize).toHaveBeenCalled());
+    expect(mockSignInVerifyEmailCode).toHaveBeenCalledWith({ code: '424242' });
+  });
+
+  test('a wrong code shows an error and does not finalize', async () => {
+    mockSignInVerifyEmailCode.mockResolvedValue({ error: { message: 'Invalid code' } });
+    await reachTrustVerifyStep();
+    await fireEvent.changeText(screen.getByPlaceholderText('123456'), '000000');
+    await fireEvent.press(screen.getByText('Verify'));
+
+    await waitFor(() => expect(screen.getByText('Invalid code')).toBeTruthy());
+    expect(mockSignInFinalize).not.toHaveBeenCalled();
+  });
+
+  test('a finalize error after verification is shown', async () => {
+    mockSignInFinalize.mockResolvedValue({ error: { message: 'Could not complete sign-in.' } });
+    await reachTrustVerifyStep();
+    await fireEvent.changeText(screen.getByPlaceholderText('123456'), '424242');
+    await fireEvent.press(screen.getByText('Verify'));
+
+    await waitFor(() => expect(screen.getByText('Could not complete sign-in.')).toBeTruthy());
   });
 });
 
