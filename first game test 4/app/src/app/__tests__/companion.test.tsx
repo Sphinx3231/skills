@@ -90,4 +90,27 @@ describe('CompanionScreen', () => {
     expect(screen.getAllByText('Unlocked')).toHaveLength(1);
     expect(screen.getAllByText('Locked')).toHaveLength(3);
   });
+
+  test('plays a celebrate FoxMoment when the backend reports a newly unlocked item', async () => {
+    mockedApi.getCompanion.mockResolvedValue(
+      companion({ streakCount: 3, unlockedItems: ['scarf'], newlyUnlocked: ['scarf'] })
+    );
+    mockedApi.getBillingStatus.mockResolvedValue(billing({ status: 'active' }));
+
+    await render(<CompanionScreen />);
+
+    // The celebrate FoxMoment replaces the hero FoxCompanion while it plays;
+    // its accessibility label is set on the GIF's <Image>, FoxCompanion's isn't.
+    await waitFor(() => expect(screen.getByLabelText('Foxxy')).toBeTruthy());
+  });
+
+  test('does not play a FoxMoment when nothing was newly unlocked', async () => {
+    mockedApi.getCompanion.mockResolvedValue(companion({ unlockedItems: [], newlyUnlocked: [] }));
+    mockedApi.getBillingStatus.mockResolvedValue(billing({ status: 'active' }));
+
+    await render(<CompanionScreen />);
+
+    await waitFor(() => expect(screen.getByText('day streak')).toBeTruthy());
+    expect(screen.queryByLabelText('Foxxy')).toBeNull();
+  });
 });

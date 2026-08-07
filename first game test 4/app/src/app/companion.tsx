@@ -7,9 +7,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AmbientGlow } from '@/components/ambient-glow';
 import { FadeInUp } from '@/components/fade-in-up';
 import { FoxCompanion } from '@/components/fox-companion';
+import { FoxMoment } from '@/components/fox-moment';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, CardShadow, CardShadowSoft, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useFoxMomentQueue } from '@/hooks/use-fox-moment-queue';
+import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
 
@@ -27,6 +30,8 @@ export default function CompanionScreen() {
   const [companion, setCompanion] = useState<api.CompanionState | null>(null);
   const [billing, setBilling] = useState<api.BillingStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const reduceMotion = useReduceMotion();
+  const { active: activeMoment, enqueue: enqueueMoment, handleDone: handleMomentDone } = useFoxMomentQueue(reduceMotion);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -34,10 +39,15 @@ export default function CompanionScreen() {
       const [companionRes, billingRes] = await Promise.all([api.getCompanion(), api.getBillingStatus()]);
       setCompanion(companionRes);
       setBilling(billingRes);
+      // The backend computes this diff itself (companion.js) and only
+      // returns non-empty on the load that actually crosses a streak
+      // threshold — including a screen's very first load, which a
+      // client-side "previous vs current" comparison would miss.
+      if (companionRes.newlyUnlocked.length > 0) enqueueMoment('celebrate');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [enqueueMoment]);
 
   useFocusEffect(
     useCallback(() => {
@@ -81,14 +91,18 @@ export default function CompanionScreen() {
                   start={{ x: 0.1, y: 0 }}
                   end={{ x: 0.9, y: 1 }}
                   style={[styles.stage, CardShadow]}>
-                  <FoxCompanion
-                    size={200}
-                    mood={(companion?.streakCount ?? 0) > 0 ? 'onTarget' : 'neutral'}
-                    wearingScarf={!!companion?.unlockedItems.includes('scarf')}
-                    wearingHat={!!companion?.unlockedItems.includes('hat')}
-                    wearingBackpack={!!companion?.unlockedItems.includes('backpack')}
-                    wearingCrown={!!companion?.unlockedItems.includes('crown')}
-                  />
+                  {activeMoment ? (
+                    <FoxMoment kind={activeMoment} size={200} onDone={handleMomentDone} />
+                  ) : (
+                    <FoxCompanion
+                      size={200}
+                      mood={(companion?.streakCount ?? 0) > 0 ? 'onTarget' : 'neutral'}
+                      wearingScarf={!!companion?.unlockedItems.includes('scarf')}
+                      wearingHat={!!companion?.unlockedItems.includes('hat')}
+                      wearingBackpack={!!companion?.unlockedItems.includes('backpack')}
+                      wearingCrown={!!companion?.unlockedItems.includes('crown')}
+                    />
+                  )}
                 </LinearGradient>
               </FadeInUp>
 

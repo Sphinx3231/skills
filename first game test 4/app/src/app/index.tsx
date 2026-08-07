@@ -8,15 +8,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AmbientGlow } from '@/components/ambient-glow';
 import { FadeInUp } from '@/components/fade-in-up';
-import { FoxCompanion } from '@/components/fox-companion';
+import { FoxCompanion, type FoxMood } from '@/components/fox-companion';
+import { FoxMoment } from '@/components/fox-moment';
 import { PressableScale } from '@/components/pressable-scale';
 import { TailRing } from '@/components/tail-ring';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, CardShadow, CardShadowSoft, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useFoxMomentQueue } from '@/hooks/use-fox-moment-queue';
+import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
 import { bucketLogs, foxxyState } from '@/lib/dashboard-logic';
+import { hasWavedThisSession, markWavedThisSession, momentForMoodTransition } from '@/lib/fox-moments';
 
 export default function DashboardScreen() {
   const { signOut } = useAuth();
@@ -24,6 +28,10 @@ export default function DashboardScreen() {
   const [summary, setSummary] = useState<api.DashboardSummary | null>(null);
   const [logs, setLogs] = useState<api.FoodLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const reduceMotion = useReduceMotion();
+  const { active: activeMoment, enqueue: enqueueMoment, handleDone: handleMomentDone } = useFoxMomentQueue(reduceMotion);
+  const prevMoodRef = useRef<FoxMood | null>(null);
+  const hasWavedRef = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -67,6 +75,21 @@ export default function DashboardScreen() {
   const carbsTarget = (goal * 0.45) / 4;
   const fatTarget = (goal * 0.3) / 9;
 
+  useEffect(() => {
+    if (!hasWavedRef.current && !hasWavedThisSession()) {
+      hasWavedRef.current = true;
+      markWavedThisSession();
+      enqueueMoment('wave');
+    }
+  }, [enqueueMoment]);
+
+  useEffect(() => {
+    if (!summary) return;
+    const moment = momentForMoodTransition(prevMoodRef.current, mood);
+    prevMoodRef.current = mood;
+    if (moment) enqueueMoment(moment);
+  }, [mood, summary, enqueueMoment]);
+
   return (
     <ThemedView style={styles.screen}>
       <AmbientGlow variant="warm" />
@@ -99,7 +122,11 @@ export default function DashboardScreen() {
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={[styles.foxCard, CardShadow]}>
-                  <FoxCompanion size={116} mood={mood} />
+                  {activeMoment ? (
+                    <FoxMoment kind={activeMoment} size={116} onDone={handleMomentDone} />
+                  ) : (
+                    <FoxCompanion size={116} mood={mood} />
+                  )}
                   <View style={styles.foxSpeech}>
                     <ThemedText type="smallBold" style={{ color: theme.bark }}>
                       Foxxy says

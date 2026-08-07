@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { AccessibilityInfo } from 'react-native';
 import LogScreen from '../log';
 import * as api from '@/lib/api';
 import * as ImagePicker from 'expo-image-picker';
@@ -96,7 +97,26 @@ describe('LogScreen — idle state', () => {
       fatG: 5,
       source: 'manual',
     }));
-    expect(mockNavigate).toHaveBeenCalledWith('/');
+    // A brief "order" FoxMoment plays before navigating home.
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'), { timeout: 3000 });
+  });
+
+  test('skips the FoxMoment and navigates home immediately when reduce motion is on', async () => {
+    // mockResolvedValueOnce (rather than mockResolvedValue + mockRestore) so
+    // this doesn't leave AccessibilityInfo permanently altered for tests that
+    // run afterward in this file.
+    jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValueOnce(true);
+    mockedApi.getFrequentFoods.mockResolvedValue([
+      { food_name: 'Oatmeal', logCount: 3, calories: 250, proteinG: 8, carbsG: 40, fatG: 5 },
+    ]);
+    mockedApi.createLog.mockResolvedValue({} as api.FoodLog);
+    await render(<LogScreen />);
+    await waitFor(() => expect(screen.getByText('Oatmeal')).toBeTruthy());
+
+    await fireEvent.press(screen.getByText('Oatmeal'));
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'));
+    expect(screen.queryByText('Logged!')).toBeNull();
   });
 
   test('a stash-tap failure shows an error', async () => {
@@ -253,7 +273,8 @@ describe('LogScreen — analyze + review flow', () => {
         expect.objectContaining({ foodName: 'Grilled chicken', calories: 520, source: 'ai' })
       )
     );
-    expect(mockNavigate).toHaveBeenCalledWith('/');
+    // A brief "order" FoxMoment plays before navigating home.
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'), { timeout: 3000 });
   });
 
   test('a save failure shows an error and stays on the review card', async () => {

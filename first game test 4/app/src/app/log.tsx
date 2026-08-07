@@ -13,14 +13,17 @@ import {
 } from 'react-native';
 
 import { FadeInUp } from '@/components/fade-in-up';
+import { FoxMoment } from '@/components/fox-moment';
 import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, CardShadow, CardShadowSoft, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
+import { shouldPlayFoxMoment } from '@/lib/fox-moments';
 
-type Step = 'idle' | 'analyzing' | 'review' | 'saving';
+type Step = 'idle' | 'analyzing' | 'review' | 'saving' | 'logged';
 
 export default function LogScreen() {
   const theme = useTheme();
@@ -32,6 +35,7 @@ export default function LogScreen() {
   const [paywallBilling, setPaywallBilling] = useState<api.BillingStatus | null>(null);
   const [frequent, setFrequent] = useState<api.FrequentFood[]>([]);
   const [stashingId, setStashingId] = useState<string | null>(null);
+  const reduceMotion = useReduceMotion();
 
   useFocusEffect(
     useCallback(() => {
@@ -78,6 +82,18 @@ export default function LogScreen() {
     }
   }
 
+  function finishLogging() {
+    setPhotoUri(null);
+    setResult(null);
+    setError(null);
+    if (shouldPlayFoxMoment(reduceMotion)) {
+      setStep('logged');
+    } else {
+      setStep('idle');
+      router.navigate('/');
+    }
+  }
+
   async function confirmSave() {
     if (!result) return;
     setStep('saving');
@@ -91,8 +107,7 @@ export default function LogScreen() {
         source: 'ai',
         aiRawResponse: result,
       });
-      reset();
-      router.navigate('/');
+      finishLogging();
     } catch (err) {
       setError(err instanceof api.ApiError ? err.message : 'Could not save this entry.');
       setStep('review');
@@ -110,7 +125,7 @@ export default function LogScreen() {
         fatG: item.fatG ?? undefined,
         source: 'manual',
       });
-      router.navigate('/');
+      finishLogging();
     } catch (err) {
       setError(err instanceof api.ApiError ? err.message : 'Could not save this entry.');
     } finally {
@@ -275,6 +290,22 @@ export default function LogScreen() {
             <ActivityIndicator color={theme.accent} />
             <ThemedText type="small" themeColor="textSecondary">
               Saving…
+            </ThemedText>
+          </ThemedView>
+        )}
+
+        {step === 'logged' && (
+          <ThemedView style={styles.centerRow}>
+            <FoxMoment
+              kind="order"
+              size={96}
+              onDone={() => {
+                setStep('idle');
+                router.navigate('/');
+              }}
+            />
+            <ThemedText type="small" themeColor="textSecondary">
+              Logged!
             </ThemedText>
           </ThemedView>
         )}

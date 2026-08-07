@@ -86,6 +86,14 @@ the API in `backend/`.
   `--experimental-vm-modules` — that one code path isn't testable as written; the test
   file documents this instead of faking it.
 
+### Next session
+- Use the GIFs in `app/assets/Gifs/` (`fox_01_wave.gif`, `fox_02_sleepy.gif`,
+  `fox_03_celebrate.gif`, `fox_04_resting.gif`, `fox_05_order.gif`) to make the app more
+  lively — likely candidates: mood/animation moments on the Dashboard and Companion screens
+  where the SVG `FoxCompanion` currently just bobs/blinks. Decide whether these replace or
+  supplement the hand-drawn SVG fox (see "Recent decisions" above re: the discarded
+  image-based redesign — check before re-litigating that call).
+
 ### Pending / not done
 - `backend/.env` has no real `ANTHROPIC_API_KEY` — AI photo-scan will fail until it's set.
 - No Stripe keys configured (`STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`,
