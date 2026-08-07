@@ -1,6 +1,9 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { ClerkProvider, useAuth } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
+import { Bitter_600SemiBold, Bitter_700Bold } from '@expo-google-fonts/bitter';
+import { WorkSans_400Regular, WorkSans_500Medium, WorkSans_700Bold } from '@expo-google-fonts/work-sans';
+import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { useColorScheme } from 'react-native';
 
@@ -28,10 +31,19 @@ function Root() {
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const [fontsLoaded, fontError] = useFonts({
+    Bitter_600SemiBold,
+    Bitter_700Bold,
+    WorkSans_400Regular,
+    WorkSans_500Medium,
+    WorkSans_700Bold,
+  });
   return (
     <ClerkProvider publishableKey={publishableKey!} tokenCache={tokenCache}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <AnimatedSplashOverlay />
+        {/* If the fonts fail to load, don't hang the splash forever waiting
+            on `fontsLoaded` — reveal the app (with fallback fonts) instead. */}
+        <AnimatedSplashOverlay ready={fontsLoaded || !!fontError} />
         <Root />
       </ThemeProvider>
     </ClerkProvider>

@@ -10,6 +10,7 @@ import { AmbientGlow } from '@/components/ambient-glow';
 import { FadeInUp } from '@/components/fade-in-up';
 import { FoxCompanion, type FoxMood } from '@/components/fox-companion';
 import { FoxMoment } from '@/components/fox-moment';
+import { PawPrint } from '@/components/paw-print';
 import { PressableScale } from '@/components/pressable-scale';
 import { TailRing } from '@/components/tail-ring';
 import { ThemedText } from '@/components/themed-text';
@@ -122,6 +123,9 @@ export default function DashboardScreen() {
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={[styles.foxCard, CardShadow]}>
+                  <View style={styles.foxCardWatermark} pointerEvents="none">
+                    <PawPrint size={72} color={theme.bark} opacity={0.14} />
+                  </View>
                   {activeMoment ? (
                     <FoxMoment kind={activeMoment} size={116} onDone={handleMomentDone} />
                   ) : (
@@ -147,11 +151,11 @@ export default function DashboardScreen() {
                       strokeWidth={16}
                       progress={progress}
                       trackColor={theme.backgroundSelected}
-                      fillColor={overGoal ? '#D32F2F' : theme.accent}
-                      tipColor={overGoal ? '#D32F2F' : theme.accent}
+                      fillColor={overGoal ? theme.overGoal : theme.accent}
+                      tipColor={overGoal ? theme.overGoal : theme.accent}
                     />
                     <View style={styles.ringCenter} pointerEvents="none">
-                      <ThemedText style={[styles.calorieNumber, { color: overGoal ? '#D32F2F' : theme.accent }]}>
+                      <ThemedText style={[styles.calorieNumber, { color: overGoal ? theme.overGoal : theme.accent }]}>
                         {calories}
                       </ThemedText>
                       <ThemedText type="small" themeColor="textSecondary">
@@ -187,9 +191,12 @@ export default function DashboardScreen() {
               ) : (
                 buckets.map((bucket, i) => (
                   <FadeInUp key={bucket.key} delay={140 + i * 60} style={styles.bucket}>
-                    <ThemedText type="small" themeColor="textSecondary" style={styles.bucketLabel}>
-                      {bucket.label.toUpperCase()}
-                    </ThemedText>
+                    <View style={styles.bucketLabelRow}>
+                      <PawPrint size={12} color={theme.textSecondary} />
+                      <ThemedText type="small" themeColor="textSecondary" style={styles.bucketLabel}>
+                        {bucket.label.toUpperCase()}
+                      </ThemedText>
+                    </View>
                     {bucket.logs.map((item) => (
                       <ThemedView key={item.id} type="backgroundElement" style={[styles.logRow, CardShadowSoft]}>
                         <View style={styles.logInfo}>
@@ -238,7 +245,9 @@ function MacroCard({ label, grams, target, color }: { label: string; grams: numb
 
   return (
     <ThemedView type="backgroundSelected" style={styles.macroCard}>
-      <ThemedText type="smallBold">{Math.round(grams)}g</ThemedText>
+      <ThemedText type="smallBold" style={styles.macroGrams}>
+        {Math.round(grams)}g
+      </ThemedText>
       <ThemedText type="small" themeColor="textSecondary">
         {label}
       </ThemedText>
@@ -278,7 +287,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
+    overflow: 'hidden',
   },
+  foxCardWatermark: { position: 'absolute', right: Spacing.two, bottom: Spacing.two },
   foxSpeech: { flex: 1, gap: 2 },
   foxLine: { lineHeight: 18 },
 
@@ -290,7 +301,7 @@ const styles = StyleSheet.create({
   },
   ringWrap: { alignItems: 'center', justifyContent: 'center' },
   ringCenter: { position: 'absolute', alignItems: 'center' },
-  calorieNumber: { fontSize: 36, fontWeight: '800', lineHeight: 40 },
+  calorieNumber: { fontSize: 36, fontWeight: '800', lineHeight: 40, fontVariant: ['tabular-nums'] },
   ringCaption: { marginTop: Spacing.one },
 
   macroRow: {
@@ -300,11 +311,13 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   macroCard: { flex: 1, borderRadius: 16, padding: Spacing.two, gap: 4 },
+  macroGrams: { fontVariant: ['tabular-nums'] },
   macroTrack: { height: 5, borderRadius: 3, backgroundColor: 'rgba(0,0,0,0.12)', overflow: 'hidden', marginTop: 2 },
   macroFill: { height: '100%', borderRadius: 3 },
 
   sectionTitle: { marginTop: Spacing.two, marginBottom: Spacing.one, letterSpacing: 0.5 },
   bucket: { gap: Spacing.one, marginBottom: Spacing.two },
+  bucketLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   bucketLabel: { letterSpacing: 1, fontSize: 11 },
   emptyCard: { borderRadius: 16, padding: Spacing.three },
   empty: { textAlign: 'center' },

@@ -13,6 +13,8 @@ import Svg, {
   Stop,
 } from 'react-native-svg';
 
+import { useReduceMotion } from '@/hooks/use-reduce-motion';
+
 const AnimatedG = Animated.createAnimatedComponent(G);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -43,12 +45,20 @@ export function FoxCompanion({
   wearingBackpack?: boolean;
   wearingCrown?: boolean;
 }) {
+  const reduceMotion = useReduceMotion();
   const bob = useRef(new Animated.Value(0)).current;
   const blink = useRef(new Animated.Value(1)).current;
   const sparkle = useRef(new Animated.Value(0)).current;
   const earWiggle = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    if (reduceMotion) {
+      // Reduce motion can flip on mid-loop (OS setting toggled while the
+      // fox is mid-bob) — snap back to the resting frame instead of
+      // freezing wherever the loop happened to be stopped.
+      bob.setValue(0);
+      return;
+    }
     const bobLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(bob, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
@@ -57,9 +67,13 @@ export function FoxCompanion({
     );
     bobLoop.start();
     return () => bobLoop.stop();
-  }, [bob]);
+  }, [bob, reduceMotion]);
 
   useEffect(() => {
+    if (reduceMotion) {
+      earWiggle.setValue(0);
+      return;
+    }
     const wiggleLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(earWiggle, { toValue: 1, duration: 2600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
@@ -68,9 +82,15 @@ export function FoxCompanion({
     );
     wiggleLoop.start();
     return () => wiggleLoop.stop();
-  }, [earWiggle]);
+  }, [earWiggle, reduceMotion]);
 
   useEffect(() => {
+    if (reduceMotion) {
+      // Without this, toggling reduce motion on mid-blink can permanently
+      // freeze the eyes squinted at scaleY 0.08 instead of open.
+      blink.setValue(1);
+      return;
+    }
     let cancelled = false;
     function scheduleBlink() {
       const delay = 2200 + Math.random() * 2600;
@@ -88,7 +108,7 @@ export function FoxCompanion({
       cancelled = true;
       clearTimeout(id);
     };
-  }, [blink]);
+  }, [blink, reduceMotion]);
 
   useEffect(() => {
     if (mood !== 'onTarget') return;

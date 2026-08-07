@@ -4,6 +4,8 @@
   "version": "1.0.0",
   "dependencies": {
     "@clerk/expo": "^4.2.1",
+    "@expo-google-fonts/bitter": "^0.4.2",
+    "@expo-google-fonts/work-sans": "^0.4.2",
     "@expo/ui": "~0.2.0-beta.9",
     "@expo/vector-icons": "^15.0.3",
     "expo": "^54.0.0",
