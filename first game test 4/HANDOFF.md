@@ -87,19 +87,31 @@ the API in `backend/`.
   file documents this instead of faking it.
 
 ### Next session
-- Use the GIFs in `app/assets/Gifs/` (`fox_01_wave.gif`, `fox_02_sleepy.gif`,
-  `fox_03_celebrate.gif`, `fox_04_resting.gif`, `fox_05_order.gif`) to make the app more
-  lively — likely candidates: mood/animation moments on the Dashboard and Companion screens
-  where the SVG `FoxCompanion` currently just bobs/blinks. Decide whether these replace or
-  supplement the hand-drawn SVG fox (see "Recent decisions" above re: the discarded
-  image-based redesign — check before re-litigating that call).
+- The GIF-moment work below is done. No specific carry-over task queued — check recent
+  chat/git log for whatever the user asks for next.
+
+### Recently completed
+- **Foxxy GIF moments** (Sphinx3231/skills#1): five short, event-triggered GIF overlays
+  (wave/sleepy/celebrate/resting/order) layered around the SVG `FoxCompanion` — see
+  `docs/plans/foxxy-gifs-plan.md` and `docs/outcomes/foxxy-gifs-outcome.md`. The SVG fox
+  itself is untouched; the GIFs are additive, not a replacement.
+- **Sign-in blocked by Clerk's `needs_client_trust` status**: found while verifying the
+  GIF work — signing in from an unrecognized browser left `signIn.status` at
+  `needs_client_trust` after a correct password, but `submitSignIn()` called `finalize()`
+  unconditionally, throwing "Cannot finalize sign-in without a created session." Fixed by
+  sending + verifying an email code via `signIn.mfa` first (mirrors the sign-up
+  verification UI already in `sign-in.tsx`). A new project skill,
+  `.claude/skills/run-foxbite-web/`, documents how to drive the web app headlessly
+  (Playwright, React Native Web's click gotchas, reading Clerk's raw API response) for
+  next time something needs verifying past sign-in.
 
 ### Pending / not done
 - `backend/.env` has no real `ANTHROPIC_API_KEY` — AI photo-scan will fail until it's set.
 - No Stripe keys configured (`STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`,
   `STRIPE_WEBHOOK_SECRET`) — checkout gracefully 501s until set.
-- Clerk dashboard gotcha hit twice already: if any sign-up field (Password, Username,
-  Phone, First/Last name) is marked "Required" in Configure → Email, Phone, Username (or
+- Clerk dashboard gotcha, **SSO sign-up path only** (the plain email/password sign-in path
+  is now fixed — see above): if any sign-up field (Password, Username, Phone, First/Last
+  name) is marked "Required" in Configure → Email, Phone, Username (or
   Restrictions/Personal Information), SSO sign-ups can never reach `status: 'complete'`
   since OAuth providers can't supply those fields, and `finalize()` throws "Cannot finalize
   sign-up without a created session." If this recurs, check for a newly-required field
