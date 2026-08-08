@@ -1,13 +1,15 @@
 import { useCallback, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect } from 'expo-router';
-import { ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AmbientGlow } from '@/components/ambient-glow';
 import { FadeInUp } from '@/components/fade-in-up';
 import { FoxMoment } from '@/components/fox-moment';
 import { Foxxy } from '@/components/foxxy';
+import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, CardShadow, CardShadowSoft, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -16,6 +18,16 @@ import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
 import { idleKindForCompanion } from '@/lib/fox-idle';
+import { useUserSettings } from '@/lib/settings-context';
+
+// Equip flags in useUserSettings(), keyed by the same item id used in
+// ALL_UNLOCKS/companion_state.unlocked_items below.
+const EQUIP_SETTING_FIELD = {
+  scarf: 'equippedScarf',
+  hat: 'equippedHat',
+  backpack: 'equippedBackpack',
+  crown: 'equippedCrown',
+} as const;
 
 const UNLOCK_LABELS: Record<string, string> = {
   scarf: 'Cozy scarf',
@@ -28,6 +40,8 @@ const ALL_UNLOCKS = ['scarf', 'hat', 'backpack', 'crown'];
 
 export default function CompanionScreen() {
   const theme = useTheme();
+  const router = useRouter();
+  const { settings, updateSettings } = useUserSettings();
   const [companion, setCompanion] = useState<api.CompanionState | null>(null);
   const [billing, setBilling] = useState<api.BillingStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,9 +75,20 @@ export default function CompanionScreen() {
       <AmbientGlow variant="cool" />
       <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <ThemedText type="title" style={styles.title}>
-            Your companion
-          </ThemedText>
+          <View style={styles.headerRow}>
+            <ThemedText type="title" style={styles.title}>
+              Your companion
+            </ThemedText>
+            <PressableScale
+              onPress={() => router.push('/settings/index')}
+              hitSlop={8}
+              scaleTo={0.9}
+              testID="settings-gear-button"
+              accessibilityLabel="Settings"
+              style={styles.gearButton}>
+              <Ionicons name="settings-outline" size={24} color={theme.textSecondary} />
+            </PressableScale>
+          </View>
 
           {loading && !companion ? (
             <ActivityIndicator style={styles.loader} />
@@ -98,10 +123,10 @@ export default function CompanionScreen() {
                     <Foxxy
                       kind={idleKindForCompanion(companion?.streakCount ?? 0)}
                       size={200}
-                      wearingScarf={!!companion?.unlockedItems.includes('scarf')}
-                      wearingHat={!!companion?.unlockedItems.includes('hat')}
-                      wearingBackpack={!!companion?.unlockedItems.includes('backpack')}
-                      wearingCrown={!!companion?.unlockedItems.includes('crown')}
+                      wearingScarf={!!companion?.unlockedItems.includes('scarf') && settings.equippedScarf}
+                      wearingHat={!!companion?.unlockedItems.includes('hat') && settings.equippedHat}
+                      wearingBackpack={!!companion?.unlockedItems.includes('backpack') && settings.equippedBackpack}
+                      wearingCrown={!!companion?.unlockedItems.includes('crown') && settings.equippedCrown}
                     />
                   )}
                 </LinearGradient>
@@ -131,28 +156,43 @@ export default function CompanionScreen() {
               <ThemedView style={styles.wardrobeGrid}>
                 {ALL_UNLOCKS.map((item, i) => {
                   const unlocked = companion?.unlockedItems.includes(item);
+                  const settingsField = EQUIP_SETTING_FIELD[item as keyof typeof EQUIP_SETTING_FIELD];
+                  const equipped = settings[settingsField];
+                  const card = (
+                    <ThemedView
+                      type={unlocked ? 'backgroundSelected' : 'backgroundElement'}
+                      style={[styles.wardrobeItem, CardShadowSoft]}>
+                      <ThemedView style={{ opacity: unlocked ? 1 : 0.35 }}>
+                        <Foxxy
+                          kind="stand"
+                          size={64}
+                          wearingScarf={item === 'scarf' && (!unlocked || equipped)}
+                          wearingHat={item === 'hat' && (!unlocked || equipped)}
+                          wearingBackpack={item === 'backpack' && (!unlocked || equipped)}
+                          wearingCrown={item === 'crown' && (!unlocked || equipped)}
+                        />
+                      </ThemedView>
+                      <ThemedText type="small" themeColor={unlocked ? 'text' : 'textSecondary'}>
+                        {UNLOCK_LABELS[item]}
+                      </ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {unlocked ? (equipped ? 'Equipped' : 'Unlocked') : 'Locked'}
+                      </ThemedText>
+                    </ThemedView>
+                  );
                   return (
                     <FadeInUp key={item} delay={160 + i * 50} style={styles.wardrobeItemWrap}>
-                      <ThemedView
-                        type={unlocked ? 'backgroundSelected' : 'backgroundElement'}
-                        style={[styles.wardrobeItem, CardShadowSoft]}>
-                        <ThemedView style={{ opacity: unlocked ? 1 : 0.35 }}>
-                          <Foxxy
-                            kind="stand"
-                            size={64}
-                            wearingScarf={item === 'scarf'}
-                            wearingHat={item === 'hat'}
-                            wearingBackpack={item === 'backpack'}
-                            wearingCrown={item === 'crown'}
-                          />
-                        </ThemedView>
-                        <ThemedText type="small" themeColor={unlocked ? 'text' : 'textSecondary'}>
-                          {UNLOCK_LABELS[item]}
-                        </ThemedText>
-                        <ThemedText type="small" themeColor="textSecondary">
-                          {unlocked ? 'Unlocked' : 'Locked'}
-                        </ThemedText>
-                      </ThemedView>
+                      {unlocked ? (
+                        <PressableScale
+                          onPress={() => updateSettings({ [settingsField]: !equipped })}
+                          testID={`wardrobe-equip-toggle-${item}`}
+                          accessibilityLabel={`${equipped ? 'Unequip' : 'Equip'} ${UNLOCK_LABELS[item]}`}
+                          scaleTo={0.96}>
+                          {card}
+                        </PressableScale>
+                      ) : (
+                        card
+                      )}
                     </FadeInUp>
                   );
                 })}
@@ -178,7 +218,9 @@ const styles = StyleSheet.create({
     paddingBottom: BottomTabInset,
     gap: Spacing.three,
   },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: 28, lineHeight: 34 },
+  gearButton: { padding: Spacing.one },
   loader: { marginTop: Spacing.six },
   billingBanner: { borderRadius: 20, padding: Spacing.three, gap: 2 },
   stage: { borderRadius: 24, paddingVertical: Spacing.five, alignItems: 'center', justifyContent: 'center' },

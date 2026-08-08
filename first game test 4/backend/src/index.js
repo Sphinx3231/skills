@@ -5,6 +5,7 @@ import { clerkMiddleware } from "@clerk/express";
 import { foodRouter } from "./routes/food.js";
 import { companionRouter } from "./routes/companion.js";
 import { billingRouter, stripeWebhookHandler } from "./routes/billing.js";
+import { userRouter } from "./routes/user.js";
 
 if (!process.env.CLERK_SECRET_KEY || !process.env.CLERK_PUBLISHABLE_KEY) {
   console.error(
@@ -38,6 +39,7 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 app.use("/food", foodRouter);
 app.use("/companion", companionRouter);
 app.use("/billing", billingRouter);
+app.use("/user", userRouter);
 
 app.use((err, _req, res, _next) => {
   console.error(err);

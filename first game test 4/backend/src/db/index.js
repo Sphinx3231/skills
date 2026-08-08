@@ -48,10 +48,35 @@ db.exec(`
     last_log_date TEXT,
     unlocked_items TEXT NOT NULL DEFAULT '[]'
   );
+
+  -- New in the user-settings ticket. Follows companion_state's 1-row-per-user
+  -- pattern exactly. macro_unit/theme_mode/motion_setting are allowlist-
+  -- validated in the route layer (backend/src/routes/user.js), not via a SQL
+  -- CHECK constraint, matching this codebase's existing route-layer
+  -- validation style (see food.js's barcode regex / billing gate).
+  -- equipped_* default to 1 (not 0): rendering already gates on BOTH
+  -- unlocked and equipped (see app/src/app/companion.tsx), so a locked item
+  -- defaulting to "equipped" is harmless and exactly preserves today's
+  -- behavior for already-unlocked items.
+  CREATE TABLE IF NOT EXISTS user_settings (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    protein_goal_g INTEGER NOT NULL DEFAULT 125,
+    carbs_goal_g INTEGER NOT NULL DEFAULT 225,
+    fats_goal_g INTEGER NOT NULL DEFAULT 67,
+    macro_unit TEXT NOT NULL DEFAULT 'grams',
+    theme_mode TEXT NOT NULL DEFAULT 'woodland_dusk',
+    motion_setting TEXT NOT NULL DEFAULT 'system_default',
+    equipped_scarf INTEGER NOT NULL DEFAULT 1,
+    equipped_hat INTEGER NOT NULL DEFAULT 1,
+    equipped_crown INTEGER NOT NULL DEFAULT 1,
+    equipped_backpack INTEGER NOT NULL DEFAULT 1,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 export function getOrCreateUser(clerkUserId) {
   db.prepare("INSERT OR IGNORE INTO users (id) VALUES (?)").run(clerkUserId);
   db.prepare("INSERT OR IGNORE INTO companion_state (user_id) VALUES (?)").run(clerkUserId);
+  db.prepare("INSERT OR IGNORE INTO user_settings (user_id) VALUES (?)").run(clerkUserId);
   return db.prepare("SELECT * FROM users WHERE id = ?").get(clerkUserId);
 }
