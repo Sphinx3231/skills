@@ -80,7 +80,7 @@ export default function CompanionScreen() {
               Your companion
             </ThemedText>
             <PressableScale
-              onPress={() => router.push('/settings/index')}
+              onPress={() => router.push('/settings')}
               hitSlop={8}
               scaleTo={0.9}
               testID="settings-gear-button"

@@ -250,7 +250,7 @@ describe('CompanionScreen', () => {
     await waitFor(() => expect(screen.getByTestId('settings-gear-button')).toBeTruthy());
 
     fireEvent.press(screen.getByTestId('settings-gear-button'));
-    expect(mockPush).toHaveBeenCalledWith('/settings/index');
+    expect(mockPush).toHaveBeenCalledWith('/settings');
   });
 
   test('plays a celebrate FoxMoment when the backend reports a newly unlocked item', async () => {
