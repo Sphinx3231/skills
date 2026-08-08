@@ -44,6 +44,12 @@ export type FoodAnalysis = {
   fatG: number;
   confidence: 'low' | 'medium' | 'high';
   notes: string;
+  // Set only for barcode lookups that had to fall back to per-100g nutriment
+  // data (no stated serving size on the product) — null/absent otherwise.
+  // Carries real visual weight in the review card (styled like the
+  // low-confidence banner), unlike `notes`' muted treatment, since the user
+  // must act on it (mentally scale to their actual portion).
+  caveat?: string | null;
 };
 
 export function analyzePhoto(photo: { uri: string; name: string; type: string }) {
@@ -51,6 +57,14 @@ export function analyzePhoto(photo: { uri: string; name: string; type: string })
   // @ts-expect-error React Native's FormData accepts this uri/name/type shape
   form.append('photo', { uri: photo.uri, name: photo.name, type: photo.type });
   return request<FoodAnalysis>('/food/analyze', { method: 'POST', body: form });
+}
+
+export function analyzeText(description: string) {
+  return request<FoodAnalysis>('/food/analyze-text', { method: 'POST', body: JSON.stringify({ description }) });
+}
+
+export function lookupBarcode(code: string) {
+  return request<FoodAnalysis>(`/food/barcode/${code}`);
 }
 
 export type FoodLog = {
@@ -61,7 +75,7 @@ export type FoodLog = {
   protein_g: number | null;
   carbs_g: number | null;
   fat_g: number | null;
-  source: 'ai' | 'manual';
+  source: 'ai' | 'manual' | 'barcode';
 };
 
 export function createLog(entry: {
@@ -70,7 +84,7 @@ export function createLog(entry: {
   proteinG?: number;
   carbsG?: number;
   fatG?: number;
-  source: 'ai' | 'manual';
+  source: 'ai' | 'manual' | 'barcode';
   aiRawResponse?: unknown;
 }) {
   return request<FoodLog>('/food/logs', { method: 'POST', body: JSON.stringify(entry) });

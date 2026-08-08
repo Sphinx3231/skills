@@ -1,7 +1,14 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
+import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
+import {
+  ExpoSpeechRecognitionModule,
+  useSpeechRecognitionEvent,
+  type ExpoSpeechRecognitionResultEvent,
+  type ExpoSpeechRecognitionErrorEvent,
+} from 'expo-speech-recognition';
 import {
   ActivityIndicator,
   Image,
@@ -23,7 +30,7 @@ import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
 import { shouldPlayFoxMoment } from '@/lib/fox-moments';
 
-type Step = 'idle' | 'analyzing' | 'review' | 'saving' | 'logged';
+type Step = 'idle' | 'listening' | 'scanning' | 'analyzing' | 'review' | 'saving' | 'logged';
 
 export default function LogScreen() {
   const theme = useTheme();
@@ -35,7 +42,18 @@ export default function LogScreen() {
   const [paywallBilling, setPaywallBilling] = useState<api.BillingStatus | null>(null);
   const [frequent, setFrequent] = useState<api.FrequentFood[]>([]);
   const [stashingId, setStashingId] = useState<string | null>(null);
+  const [logSource, setLogSource] = useState<'ai' | 'barcode'>('ai');
+  const [transcript, setTranscript] = useState('');
   const reduceMotion = useReduceMotion();
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const voiceSubmittedRef = useRef(false);
+  const barcodeScannedRef = useRef(false);
+  // Guards against a rapid double-tap on Voice Input / Barcode Hunt while
+  // their permission request promise is still pending — without this, a
+  // second tap before the first `await` resolves would fire a second
+  // permission request / flow start.
+  const voiceStartInFlightRef = useRef(false);
+  const barcodeStartInFlightRef = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -68,6 +86,7 @@ export default function LogScreen() {
         name: asset.fileName ?? 'photo.jpg',
         type: asset.mimeType ?? 'image/jpeg',
       });
+      setLogSource('ai');
       setResult(analysis);
       setStep('review');
     } catch (err) {
@@ -79,6 +98,125 @@ export default function LogScreen() {
       }
       setError(err instanceof api.ApiError ? err.message : 'Could not reach the server.');
       setStep('idle');
+    }
+  }
+
+  async function submitDescription(description: string) {
+    if (!description.trim()) {
+      setStep('idle');
+      return;
+    }
+    setStep('analyzing');
+    try {
+      const analysis = await api.analyzeText(description);
+      setLogSource('ai');
+      setResult(analysis);
+      setStep('review');
+    } catch (err) {
+      if (err instanceof api.ApiError && err.status === 402) {
+        setPaywallBilling((err.body as { billing: api.BillingStatus }).billing);
+        setStep('idle');
+        return;
+      }
+      setError(err instanceof api.ApiError ? err.message : 'Could not reach the server.');
+      setStep('idle');
+    }
+  }
+
+  useSpeechRecognitionEvent('result', (event: ExpoSpeechRecognitionResultEvent) => {
+    const text = event.results[0]?.transcript ?? '';
+    setTranscript(text);
+    // Interim results are for display only — only a final result gets sent
+    // to the backend, and only once per listening session.
+    if (event.isFinal && !voiceSubmittedRef.current) {
+      voiceSubmittedRef.current = true;
+      // Stop the recognizer as soon as a final transcript is accepted —
+      // on native Android the mic can otherwise stay open after the UI has
+      // already moved on to analyzing/review.
+      ExpoSpeechRecognitionModule.stop();
+      submitDescription(text);
+    }
+  });
+
+  useSpeechRecognitionEvent('error', (event: ExpoSpeechRecognitionErrorEvent) => {
+    if (step !== 'listening') return;
+    setError(event.message || 'Speech recognition failed, try again.');
+    setStep('idle');
+  });
+
+  useSpeechRecognitionEvent('end', () => {
+    // If recognition ended (e.g. silence) without ever submitting a final
+    // transcript, the UI would otherwise hang on "Listening…" forever with
+    // no error and no way forward besides the manual Cancel button. The
+    // `step !== 'listening'` guard mirrors the 'error' handler above, so
+    // this is a no-op when the session already moved on (submitted,
+    // canceled, or errored) by the time 'end' actually fires.
+    if (step !== 'listening') return;
+    if (!voiceSubmittedRef.current) {
+      setError("Didn't catch that, try again.");
+      setStep('idle');
+    }
+  });
+
+  async function startVoiceInput() {
+    if (voiceStartInFlightRef.current) return;
+    voiceStartInFlightRef.current = true;
+    setError(null);
+    try {
+      const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!permission.granted) {
+        setError('Permission to use the microphone was denied.');
+        return;
+      }
+      voiceSubmittedRef.current = false;
+      setTranscript('');
+      setStep('listening');
+      ExpoSpeechRecognitionModule.start({ lang: 'en-US', interimResults: true });
+    } finally {
+      voiceStartInFlightRef.current = false;
+    }
+  }
+
+  async function startBarcodeHunt() {
+    if (barcodeStartInFlightRef.current) return;
+    barcodeStartInFlightRef.current = true;
+    setError(null);
+    try {
+      let permission = cameraPermission;
+      if (!permission?.granted) {
+        permission = await requestCameraPermission();
+      }
+      if (!permission?.granted) {
+        setError('Permission to use the camera was denied.');
+        return;
+      }
+      barcodeScannedRef.current = false;
+      setStep('scanning');
+    } finally {
+      barcodeStartInFlightRef.current = false;
+    }
+  }
+
+  function handleBarcodeScanned(scan: BarcodeScanningResult) {
+    // onBarcodeScanned fires continuously while a barcode stays in frame, so
+    // only the first scan of a session should trigger a lookup — ignore the
+    // rest until the user backs out or this lookup finishes either way.
+    if (barcodeScannedRef.current) return;
+    barcodeScannedRef.current = true;
+    lookupBarcode(scan.data);
+  }
+
+  async function lookupBarcode(code: string) {
+    setStep('analyzing');
+    try {
+      const analysis = await api.lookupBarcode(code);
+      setLogSource('barcode');
+      setResult(analysis);
+      setStep('review');
+    } catch (err) {
+      setError(err instanceof api.ApiError ? err.message : 'Could not reach the server.');
+      setStep('idle');
+      barcodeScannedRef.current = false;
     }
   }
 
@@ -104,7 +242,7 @@ export default function LogScreen() {
         proteinG: result.proteinG,
         carbsG: result.carbsG,
         fatG: result.fatG,
-        source: 'ai',
+        source: logSource,
         aiRawResponse: result,
       });
       finishLogging();
@@ -138,6 +276,18 @@ export default function LogScreen() {
     setPhotoUri(null);
     setResult(null);
     setError(null);
+    setTranscript('');
+  }
+
+  function cancelListening() {
+    ExpoSpeechRecognitionModule.stop();
+    setStep('idle');
+    setTranscript('');
+  }
+
+  function cancelScanning() {
+    setStep('idle');
+    barcodeScannedRef.current = false;
   }
 
   if (paywallBilling) {
@@ -170,8 +320,18 @@ export default function LogScreen() {
                 sublabel="Pick an existing photo"
                 onPress={() => pickAndAnalyze(false)}
               />
-              <HubTile icon="mic" label="Voice Input" sublabel="Coming soon" disabled />
-              <HubTile icon="barcode" label="Barcode Hunt" sublabel="Coming soon" disabled />
+              <HubTile
+                icon="mic"
+                label="Voice Input"
+                sublabel="Say what you ate"
+                onPress={startVoiceInput}
+              />
+              <HubTile
+                icon="barcode"
+                label="Barcode Hunt"
+                sublabel="Scan a package"
+                onPress={startBarcodeHunt}
+              />
             </FadeInUp>
 
             {error && (
@@ -214,6 +374,39 @@ export default function LogScreen() {
 
         {photoUri && <Image source={{ uri: photoUri }} style={styles.preview} />}
 
+        {step === 'listening' && (
+          <ThemedView type="backgroundElement" style={[styles.listeningCard, CardShadow]}>
+            <Ionicons name="mic" size={32} color={theme.accent} />
+            <ThemedText type="small" themeColor="textSecondary">
+              Listening… say what you ate
+            </ThemedText>
+            <ThemedText style={styles.transcript}>{transcript}</ThemedText>
+            <PressableScale style={styles.secondaryButton} onPress={cancelListening}>
+              <ThemedText themeColor="text" style={styles.secondaryButtonText}>
+                Cancel
+              </ThemedText>
+            </PressableScale>
+          </ThemedView>
+        )}
+
+        {step === 'scanning' && (
+          <ThemedView style={styles.scanCard}>
+            <CameraView
+              style={styles.cameraView}
+              barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e'] }}
+              onBarcodeScanned={handleBarcodeScanned}
+            />
+            <ThemedText type="small" themeColor="textSecondary" style={styles.scanHint}>
+              Point the camera at a barcode
+            </ThemedText>
+            <PressableScale style={styles.secondaryButton} onPress={cancelScanning}>
+              <ThemedText themeColor="text" style={styles.secondaryButtonText}>
+                Cancel
+              </ThemedText>
+            </PressableScale>
+          </ThemedView>
+        )}
+
         {step === 'analyzing' && (
           <ThemedView style={styles.centerRow}>
             <ActivityIndicator color={theme.accent} />
@@ -228,6 +421,11 @@ export default function LogScreen() {
             {result.confidence === 'low' && (
               <ThemedText type="small" style={styles.lowConfidence}>
                 Low confidence — double-check these numbers before saving.
+              </ThemedText>
+            )}
+            {!!result.caveat && (
+              <ThemedText type="small" style={styles.lowConfidence}>
+                {result.caveat}
               </ThemedText>
             )}
             <Field label="Food">
@@ -502,6 +700,16 @@ const styles = StyleSheet.create({
     marginTop: Spacing.two,
   },
   centerRow: { alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.five },
+  listeningCard: {
+    borderRadius: 24,
+    padding: Spacing.four,
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  transcript: { textAlign: 'center', minHeight: 24 },
+  scanCard: { gap: Spacing.two, alignItems: 'center' },
+  cameraView: { width: '100%', aspectRatio: 1, borderRadius: 20, overflow: 'hidden' },
+  scanHint: { textAlign: 'center' },
   reviewCard: { borderRadius: 24, padding: Spacing.four, gap: Spacing.three },
   lowConfidence: { color: '#a9781a' },
   field: { gap: 4 },

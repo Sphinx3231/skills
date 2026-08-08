@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { AccessibilityInfo } from 'react-native';
 import LogScreen from '../log';
 import * as api from '@/lib/api';
 import * as ImagePicker from 'expo-image-picker';
+import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 
 const mockNavigate = jest.fn();
 jest.mock('expo-router', () => ({
@@ -27,6 +28,50 @@ jest.mock('expo-web-browser', () => ({
   openBrowserAsync: (...args: unknown[]) => mockOpenBrowserAsync(...args),
 }));
 
+// expo-speech-recognition is event-based: `start`/`stop`/`requestPermissionsAsync`
+// are plain jest.fn()s, and `useSpeechRecognitionEvent` is faked as a tiny event
+// bus so tests can fire 'result'/'error' events the same way the native module
+// would, driving the component's real listeners.
+type SpeechListener = (event: any) => void;
+const speechListeners: Record<string, SpeechListener[]> = {};
+function emitSpeechEvent(name: string, event: any) {
+  (speechListeners[name] ?? []).forEach((l) => l(event));
+}
+jest.mock('expo-speech-recognition', () => ({
+  ExpoSpeechRecognitionModule: {
+    requestPermissionsAsync: jest.fn(),
+    start: jest.fn(),
+    stop: jest.fn(),
+  },
+  useSpeechRecognitionEvent: (name: string, listener: SpeechListener) => {
+    const { useEffect } = jest.requireActual('react');
+    useEffect(() => {
+      speechListeners[name] = [...(speechListeners[name] ?? []), listener];
+      return () => {
+        speechListeners[name] = (speechListeners[name] ?? []).filter((l) => l !== listener);
+      };
+    });
+  },
+}));
+
+// expo-camera: useCameraPermissions is a hook returning [permission, request],
+// and CameraView is faked as a plain view so tests can invoke onBarcodeScanned
+// directly (mirrors how expo-image-picker's async functions are mocked above).
+const mockRequestCameraPermission = jest.fn();
+let mockCameraPermission: { granted: boolean } | null = null;
+let latestOnBarcodeScanned: ((result: { type: string; data: string }) => void) | null = null;
+jest.mock('expo-camera', () => {
+  const React = jest.requireActual('react');
+  const { View } = jest.requireActual('react-native');
+  return {
+    useCameraPermissions: () => [mockCameraPermission, mockRequestCameraPermission],
+    CameraView: (props: any) => {
+      latestOnBarcodeScanned = props.onBarcodeScanned;
+      return React.createElement(View, { testID: 'camera-view' });
+    },
+  };
+});
+
 jest.mock('@/lib/api', () => ({
   // Keep the real ApiError class (auto-mocking it would strip its
   // constructor, breaking `err.message`/`err.status` in the component) and
@@ -34,11 +79,14 @@ jest.mock('@/lib/api', () => ({
   ...jest.requireActual('@/lib/api'),
   getFrequentFoods: jest.fn(),
   analyzePhoto: jest.fn(),
+  analyzeText: jest.fn(),
+  lookupBarcode: jest.fn(),
   createLog: jest.fn(),
   createCheckoutSession: jest.fn(),
 }));
 const mockedApi = api as jest.Mocked<typeof api>;
 const mockedPicker = ImagePicker as jest.Mocked<typeof ImagePicker>;
+const mockedSpeech = ExpoSpeechRecognitionModule as jest.Mocked<typeof ExpoSpeechRecognitionModule>;
 
 const analysis: api.FoodAnalysis = {
   foodName: 'Grilled chicken',
@@ -52,10 +100,36 @@ const analysis: api.FoodAnalysis = {
 
 const asset = { uri: 'file://photo.jpg', fileName: 'photo.jpg', mimeType: 'image/jpeg' };
 
+// Fires a `press` event twice, unawaited, inside a single explicit `act()`
+// scope — used only by the double-tap-guard tests below, which need to
+// invoke the same handler twice synchronously to simulate a real double-tap
+// landing before the first tap's permission promise resolves. A normal
+// `await fireEvent.press(...)` per tap can't reproduce that race: each
+// call's internal `act()` only settles once the whole handler (including
+// its pending permission `await`) resolves, so two sequentially-awaited
+// presses can never actually overlap. Calling `fireEvent.press` twice at the
+// top level (each starting its own independent, unawaited `act()` scope)
+// corrupts React's act-tracking across the whole file — nesting both calls
+// inside one outer `act()` instead keeps them properly nested rather than
+// sibling/overlapping, since the outer scope doesn't resolve (and doesn't
+// need either inner call's promise to settle) until we explicitly await it
+// after both taps have already fired synchronously.
+function doubleTap(label: string) {
+  return act(async () => {
+    fireEvent.press(screen.getByText(label));
+    fireEvent.press(screen.getByText(label));
+  });
+}
+
 beforeEach(() => {
   mockedApi.getFrequentFoods.mockResolvedValue([]);
   mockedPicker.requestCameraPermissionsAsync.mockResolvedValue({ granted: true } as any);
   mockedPicker.requestMediaLibraryPermissionsAsync.mockResolvedValue({ granted: true } as any);
+  mockedSpeech.requestPermissionsAsync.mockResolvedValue({ granted: true } as any);
+  mockCameraPermission = { granted: true };
+  mockRequestCameraPermission.mockResolvedValue({ granted: true });
+  latestOnBarcodeScanned = null;
+  Object.keys(speechListeners).forEach((key) => delete speechListeners[key]);
 });
 
 afterEach(() => jest.clearAllMocks());
@@ -290,6 +364,418 @@ describe('LogScreen — analyze + review flow', () => {
 
     await waitFor(() => expect(screen.getByText('Could not save this entry.')).toBeTruthy());
     expect(screen.getByText('Save to today')).toBeTruthy(); // still on review
+  });
+});
+
+describe('LogScreen — Voice Input', () => {
+  test('shows a permission-denied error and never starts listening', async () => {
+    mockedSpeech.requestPermissionsAsync.mockResolvedValue({ granted: false } as any);
+    await render(<LogScreen />);
+
+    await fireEvent.press(screen.getByText('Voice Input'));
+
+    await waitFor(() => expect(screen.getByText(/Permission to use the microphone was denied/)).toBeTruthy());
+    expect(mockedSpeech.start).not.toHaveBeenCalled();
+  });
+
+  test('a rapid double-tap before permission resolves triggers exactly one permission request', async () => {
+    let resolvePermission: (value: { granted: boolean }) => void = () => {};
+    mockedSpeech.requestPermissionsAsync.mockImplementation(
+      () => new Promise((resolve) => { resolvePermission = resolve as typeof resolvePermission; })
+    );
+    await render(<LogScreen />);
+
+    // Both taps happen inside one `act()` so the second (guarded, no-op)
+    // tap genuinely lands before the first tap's pending
+    // `await requestPermissionsAsync()` settles.
+    await doubleTap('Voice Input');
+    await act(async () => {
+      resolvePermission({ granted: true });
+    });
+    await waitFor(() => expect(screen.getByText(/Listening/)).toBeTruthy());
+
+    expect(mockedSpeech.requestPermissionsAsync).toHaveBeenCalledTimes(1);
+  });
+
+  test('stop() is called immediately after a successful final transcript, not just on cancel/error', async () => {
+    mockedApi.analyzeText.mockResolvedValue(analysis);
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Voice Input'));
+    await waitFor(() => expect(screen.getByText(/Listening/)).toBeTruthy());
+    mockedSpeech.stop.mockClear();
+
+    emitSpeechEvent('result', { results: [{ transcript: 'grilled chicken' }], isFinal: true });
+
+    await waitFor(() => expect(mockedSpeech.stop).toHaveBeenCalled());
+  });
+
+  test("recognition ending with no final result shows \"Didn't catch that\" and returns to idle, instead of hanging in listening", async () => {
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Voice Input'));
+    await waitFor(() => expect(screen.getByText(/Listening/)).toBeTruthy());
+
+    emitSpeechEvent('end', {});
+
+    await waitFor(() => expect(screen.getByText("Didn't catch that, try again.")).toBeTruthy());
+    expect(screen.getByText('Voice Input')).toBeTruthy(); // back on the idle hub, dismissable like any other error
+  });
+
+  test("'end' firing after a final result was already submitted does not show the no-catch error", async () => {
+    mockedApi.analyzeText.mockResolvedValue(analysis);
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Voice Input'));
+    await waitFor(() => expect(screen.getByText(/Listening/)).toBeTruthy());
+    emitSpeechEvent('result', { results: [{ transcript: 'grilled chicken' }], isFinal: true });
+    await waitFor(() => expect(screen.getByDisplayValue('Grilled chicken')).toBeTruthy());
+
+    emitSpeechEvent('end', {});
+
+    expect(screen.queryByText("Didn't catch that, try again.")).toBeNull();
+  });
+
+  test("'end' firing synchronously right after a final result, before the step transition flushes, does not show the no-catch error", async () => {
+    // The 'result' handler sets voiceSubmittedRef synchronously but the step
+    // transition away from 'listening' happens asynchronously inside
+    // submitDescription. If 'end' fires in that same tick — before the
+    // component re-renders with the new step — the closure's `step` is
+    // still 'listening', so this exercises the branch where the
+    // `step !== 'listening'` guard is false but `voiceSubmittedRef.current`
+    // is already true.
+    mockedApi.analyzeText.mockResolvedValue(analysis);
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Voice Input'));
+    await waitFor(() => expect(screen.getByText(/Listening/)).toBeTruthy());
+
+    await act(async () => {
+      emitSpeechEvent('result', { results: [{ transcript: 'grilled chicken' }], isFinal: true });
+      emitSpeechEvent('end', {});
+    });
+
+    expect(screen.queryByText("Didn't catch that, try again.")).toBeNull();
+  });
+
+  test("'end' firing while not listening at all is a no-op", async () => {
+    await render(<LogScreen />);
+    // Never started listening — exercises the guard's early-return branch.
+    emitSpeechEvent('end', {});
+
+    expect(screen.getByText('Voice Input')).toBeTruthy();
+    expect(screen.queryByText("Didn't catch that, try again.")).toBeNull();
+  });
+
+  test('tapping the tile starts listening and shows the live transcript', async () => {
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Voice Input'));
+
+    await waitFor(() => expect(mockedSpeech.start).toHaveBeenCalledWith({ lang: 'en-US', interimResults: true }));
+    await waitFor(() => expect(screen.getByText(/Listening/)).toBeTruthy());
+
+    // Interim (non-final) results update the display but are never sent to the backend.
+    emitSpeechEvent('result', { results: [{ transcript: 'a bowl of' }], isFinal: false });
+    await waitFor(() => expect(screen.getByText('a bowl of')).toBeTruthy());
+    expect(mockedApi.analyzeText).not.toHaveBeenCalled();
+  });
+
+  test('a final result submits to analyzeText and shows the review card', async () => {
+    mockedApi.analyzeText.mockResolvedValue(analysis);
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Voice Input'));
+    await waitFor(() => expect(screen.getByText(/Listening/)).toBeTruthy());
+
+    emitSpeechEvent('result', { results: [{ transcript: 'grilled chicken' }], isFinal: true });
+
+    await waitFor(() => expect(mockedApi.analyzeText).toHaveBeenCalledWith('grilled chicken'));
+    await waitFor(() => expect(screen.getByDisplayValue('Grilled chicken')).toBeTruthy());
+  });
+
+  test('a result event with no results falls back to an empty transcript', async () => {
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Voice Input'));
+    await waitFor(() => expect(screen.getByText(/Listening/)).toBeTruthy());
+
+    emitSpeechEvent('result', { results: [], isFinal: false });
+
+    // Still on the listening screen, transcript stayed empty — no crash.
+    expect(screen.getByText(/Listening/)).toBeTruthy();
+    expect(mockedApi.analyzeText).not.toHaveBeenCalled();
+  });
+
+  test('an error event with no message uses the generic fallback message', async () => {
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Voice Input'));
+    await waitFor(() => expect(screen.getByText(/Listening/)).toBeTruthy());
+
+    emitSpeechEvent('error', { error: 'unknown', message: '' });
+
+    await waitFor(() => expect(screen.getByText('Speech recognition failed, try again.')).toBeTruthy());
+  });
+
+  test('an error event fired while not listening is a no-op', async () => {
+    await render(<LogScreen />);
+    // Not listening yet (still on the idle hub) — the component's error
+    // listener is mounted from render start, so this exercises the guard's
+    // early-return branch instead of the "was listening" branch above.
+    emitSpeechEvent('error', { error: 'unknown', message: 'Should be ignored' });
+
+    expect(screen.getByText('Voice Input')).toBeTruthy();
+    expect(screen.queryByText('Should be ignored')).toBeNull();
+  });
+
+  test('a repeated final result only submits once', async () => {
+    mockedApi.analyzeText.mockResolvedValue(analysis);
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Voice Input'));
+    await waitFor(() => expect(screen.getByText(/Listening/)).toBeTruthy());
+
+    emitSpeechEvent('result', { results: [{ transcript: 'grilled chicken' }], isFinal: true });
+    emitSpeechEvent('result', { results: [{ transcript: 'grilled chicken' }], isFinal: true });
+
+    await waitFor(() => expect(screen.getByDisplayValue('Grilled chicken')).toBeTruthy());
+    expect(mockedApi.analyzeText).toHaveBeenCalledTimes(1);
+  });
+
+  test('an empty final transcript returns to idle without calling analyzeText', async () => {
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Voice Input'));
+    await waitFor(() => expect(screen.getByText(/Listening/)).toBeTruthy());
+
+    emitSpeechEvent('result', { results: [{ transcript: '   ' }], isFinal: true });
+
+    await waitFor(() => expect(screen.getByText('Voice Input')).toBeTruthy());
+    expect(mockedApi.analyzeText).not.toHaveBeenCalled();
+  });
+
+  test('a speech recognition error shows a message and returns to idle', async () => {
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Voice Input'));
+    await waitFor(() => expect(screen.getByText(/Listening/)).toBeTruthy());
+
+    emitSpeechEvent('error', { error: 'no-speech', message: 'No speech was detected.' });
+
+    await waitFor(() => expect(screen.getByText('No speech was detected.')).toBeTruthy());
+    expect(screen.getByText('Voice Input')).toBeTruthy(); // back on the idle hub
+  });
+
+  test('a 402 from analyzeText shows the trial-ended paywall', async () => {
+    mockedApi.analyzeText.mockRejectedValue(
+      new api.ApiError(402, 'Your free trial has ended', {
+        billing: { status: 'expired', trialEndsAt: '2026-01-01T00:00:00.000Z', daysLeft: 0 },
+      })
+    );
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Voice Input'));
+    await waitFor(() => expect(screen.getByText(/Listening/)).toBeTruthy());
+
+    emitSpeechEvent('result', { results: [{ transcript: 'grilled chicken' }], isFinal: true });
+
+    await waitFor(() => expect(screen.getByText('Your free month is up')).toBeTruthy());
+  });
+
+  test('a generic (non-402) analyzeText failure shows an error and returns to idle', async () => {
+    mockedApi.analyzeText.mockRejectedValue(new api.ApiError(502, 'Could not analyze description, try again'));
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Voice Input'));
+    await waitFor(() => expect(screen.getByText(/Listening/)).toBeTruthy());
+
+    emitSpeechEvent('result', { results: [{ transcript: 'grilled chicken' }], isFinal: true });
+
+    await waitFor(() => expect(screen.getByText('Could not analyze description, try again')).toBeTruthy());
+    expect(screen.getByText('Voice Input')).toBeTruthy(); // back on the idle hub
+  });
+
+  test('cancel while listening stops recognition and returns to idle', async () => {
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Voice Input'));
+    await waitFor(() => expect(screen.getByText('Cancel')).toBeTruthy());
+
+    await fireEvent.press(screen.getByText('Cancel'));
+
+    expect(mockedSpeech.stop).toHaveBeenCalled();
+    expect(screen.getByText('Voice Input')).toBeTruthy();
+  });
+
+  test('saving a voice-sourced entry logs it with source "ai"', async () => {
+    mockedApi.analyzeText.mockResolvedValue(analysis);
+    mockedApi.createLog.mockResolvedValue({} as api.FoodLog);
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Voice Input'));
+    await waitFor(() => expect(screen.getByText(/Listening/)).toBeTruthy());
+    emitSpeechEvent('result', { results: [{ transcript: 'grilled chicken' }], isFinal: true });
+    await waitFor(() => expect(screen.getByText('Save to today')).toBeTruthy());
+
+    await fireEvent.press(screen.getByText('Save to today'));
+
+    await waitFor(() =>
+      expect(mockedApi.createLog).toHaveBeenCalledWith(expect.objectContaining({ source: 'ai' }))
+    );
+  });
+});
+
+describe('LogScreen — Barcode Hunt', () => {
+  function scan(data = '3017620422003') {
+    latestOnBarcodeScanned?.({ type: 'ean13', data });
+  }
+
+  test('shows a permission-denied error and never opens the camera', async () => {
+    mockCameraPermission = { granted: false };
+    mockRequestCameraPermission.mockResolvedValue({ granted: false });
+    await render(<LogScreen />);
+
+    await fireEvent.press(screen.getByText('Barcode Hunt'));
+
+    await waitFor(() => expect(screen.getByText(/Permission to use the camera was denied/)).toBeTruthy());
+    expect(screen.queryByTestId('camera-view')).toBeNull();
+  });
+
+  test('a rapid double-tap before permission resolves triggers exactly one permission request', async () => {
+    mockCameraPermission = { granted: false }; // force the async requestCameraPermission() path
+    let resolvePermission: (value: { granted: boolean }) => void = () => {};
+    mockRequestCameraPermission.mockImplementation(
+      () => new Promise((resolve) => { resolvePermission = resolve; })
+    );
+    await render(<LogScreen />);
+
+    // See the matching Voice Input test above for why both taps (and
+    // resolving the permission) happen inside one `act()`.
+    await doubleTap('Barcode Hunt');
+    await act(async () => {
+      resolvePermission({ granted: true });
+    });
+    await waitFor(() => expect(screen.getByTestId('camera-view')).toBeTruthy());
+
+    expect(mockRequestCameraPermission).toHaveBeenCalledTimes(1);
+  });
+
+  test('tapping the tile opens the camera view', async () => {
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Barcode Hunt'));
+
+    await waitFor(() => expect(screen.getByTestId('camera-view')).toBeTruthy());
+  });
+
+  test('a successful scan looks up the barcode and shows the review card', async () => {
+    mockedApi.lookupBarcode.mockResolvedValue(analysis);
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Barcode Hunt'));
+    await waitFor(() => expect(screen.getByTestId('camera-view')).toBeTruthy());
+
+    scan();
+
+    await waitFor(() => expect(mockedApi.lookupBarcode).toHaveBeenCalledWith('3017620422003'));
+    await waitFor(() => expect(screen.getByDisplayValue('Grilled chicken')).toBeTruthy());
+  });
+
+  test('rapid repeated scans of the same barcode trigger exactly one lookup', async () => {
+    mockedApi.lookupBarcode.mockResolvedValue(analysis);
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Barcode Hunt'));
+    await waitFor(() => expect(screen.getByTestId('camera-view')).toBeTruthy());
+
+    scan();
+    scan();
+    scan();
+
+    await waitFor(() => expect(screen.getByDisplayValue('Grilled chicken')).toBeTruthy());
+    expect(mockedApi.lookupBarcode).toHaveBeenCalledTimes(1);
+  });
+
+  test('a non-ApiError lookup failure shows the generic unreachable-server message', async () => {
+    mockedApi.lookupBarcode.mockRejectedValue(new Error('network exploded'));
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Barcode Hunt'));
+    await waitFor(() => expect(screen.getByTestId('camera-view')).toBeTruthy());
+
+    scan();
+
+    await waitFor(() => expect(screen.getByText('Could not reach the server.')).toBeTruthy());
+  });
+
+  test('a not-found barcode shows a clear error, not a crash or blank review card', async () => {
+    mockedApi.lookupBarcode.mockRejectedValue(new api.ApiError(404, 'No product found for this barcode'));
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Barcode Hunt'));
+    await waitFor(() => expect(screen.getByTestId('camera-view')).toBeTruthy());
+
+    scan();
+
+    await waitFor(() => expect(screen.getByText('No product found for this barcode')).toBeTruthy());
+    expect(screen.queryByDisplayValue('Grilled chicken')).toBeNull();
+  });
+
+  test('a found-but-no-nutrition-data barcode shows its own distinct error', async () => {
+    mockedApi.lookupBarcode.mockRejectedValue(
+      new api.ApiError(404, 'Found a product, but it has no nutrition data on file')
+    );
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Barcode Hunt'));
+    await waitFor(() => expect(screen.getByTestId('camera-view')).toBeTruthy());
+
+    scan();
+
+    await waitFor(() =>
+      expect(screen.getByText('Found a product, but it has no nutrition data on file')).toBeTruthy()
+    );
+  });
+
+  test('a product with only per-100g data shows the caveat with the low-confidence styling weight', async () => {
+    mockedApi.lookupBarcode.mockResolvedValue({
+      ...analysis,
+      confidence: 'medium',
+      caveat: 'No serving size listed for this product — values shown are per 100g.',
+    });
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Barcode Hunt'));
+    await waitFor(() => expect(screen.getByTestId('camera-view')).toBeTruthy());
+
+    scan();
+
+    await waitFor(() =>
+      expect(screen.getByText(/values shown are per 100g/)).toBeTruthy()
+    );
+  });
+
+  test('a product with serving-size data shows no per-100g caveat', async () => {
+    mockedApi.lookupBarcode.mockResolvedValue({ ...analysis, confidence: 'medium', caveat: null });
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Barcode Hunt'));
+    await waitFor(() => expect(screen.getByTestId('camera-view')).toBeTruthy());
+
+    scan();
+
+    await waitFor(() => expect(screen.getByDisplayValue('Grilled chicken')).toBeTruthy());
+    expect(screen.queryByText(/per 100g/)).toBeNull();
+  });
+
+  test('cancel while scanning returns to idle and re-arms the dedup guard for next time', async () => {
+    mockedApi.lookupBarcode.mockResolvedValue(analysis);
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Barcode Hunt'));
+    await waitFor(() => expect(screen.getByText('Cancel')).toBeTruthy());
+
+    await fireEvent.press(screen.getByText('Cancel'));
+    expect(screen.getByText('Barcode Hunt')).toBeTruthy();
+
+    await fireEvent.press(screen.getByText('Barcode Hunt'));
+    await waitFor(() => expect(screen.getByTestId('camera-view')).toBeTruthy());
+    scan();
+
+    await waitFor(() => expect(mockedApi.lookupBarcode).toHaveBeenCalledTimes(1));
+  });
+
+  test('saving a barcode-sourced entry logs it with source "barcode"', async () => {
+    mockedApi.lookupBarcode.mockResolvedValue(analysis);
+    mockedApi.createLog.mockResolvedValue({} as api.FoodLog);
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Barcode Hunt'));
+    await waitFor(() => expect(screen.getByTestId('camera-view')).toBeTruthy());
+    scan();
+    await waitFor(() => expect(screen.getByText('Save to today')).toBeTruthy());
+
+    await fireEvent.press(screen.getByText('Save to today'));
+
+    await waitFor(() =>
+      expect(mockedApi.createLog).toHaveBeenCalledWith(expect.objectContaining({ source: 'barcode' }))
+    );
   });
 });
 
