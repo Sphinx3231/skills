@@ -90,6 +90,24 @@ describe('api client', () => {
     expect(JSON.parse(options.body)).toEqual({ successUrl: 'https://ok', cancelUrl: 'https://cancel' });
   });
 
+  test('getUserSettings hits GET /user/settings', async () => {
+    mockFetchOnce({ ok: true, json: async () => ({ dailyCalorieGoal: 2000 }) });
+    await api.getUserSettings();
+    const [url, options] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toContain('/user/settings');
+    expect(options.method).toBeUndefined();
+  });
+
+  test('updateUserSettings PATCHes /user/settings with a JSON body', async () => {
+    mockFetchOnce({ ok: true, json: async () => ({ dailyCalorieGoal: 2200 }) });
+    const result = await api.updateUserSettings({ dailyCalorieGoal: 2200 });
+    const [url, options] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toContain('/user/settings');
+    expect(options.method).toBe('PATCH');
+    expect(JSON.parse(options.body)).toEqual({ dailyCalorieGoal: 2200 });
+    expect(result.dailyCalorieGoal).toBe(2200);
+  });
+
   test('getFrequentFoods hits /food/frequent', async () => {
     mockFetchOnce({ ok: true, json: async () => [] });
     await api.getFrequentFoods();

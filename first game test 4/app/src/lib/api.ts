@@ -154,4 +154,26 @@ export function createCheckoutSession(successUrl: string, cancelUrl: string) {
   });
 }
 
+export type UserSettings = {
+  dailyCalorieGoal: number;
+  proteinGoalG: number;
+  carbsGoalG: number;
+  fatsGoalG: number;
+  macroUnit: 'grams' | 'percentage';
+  themeMode: 'woodland_dusk' | 'dark' | 'system';
+  motionSetting: 'system_default' | 'force_reduced_motion' | 'full_animations';
+  equippedScarf: boolean;
+  equippedHat: boolean;
+  equippedCrown: boolean;
+  equippedBackpack: boolean;
+};
+
+export function getUserSettings() {
+  return request<UserSettings>('/user/settings');
+}
+
+export function updateUserSettings(patch: Partial<UserSettings>) {
+  return request<UserSettings>('/user/settings', { method: 'PATCH', body: JSON.stringify(patch) });
+}
+
 export { ApiError };

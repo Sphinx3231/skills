@@ -23,10 +23,12 @@ import * as api from '@/lib/api';
 import { bucketLogs, foxxyState, type FoxMood } from '@/lib/dashboard-logic';
 import { idleKindForDashboard } from '@/lib/fox-idle';
 import { hasWavedThisSession, markWavedThisSession, momentForMoodTransition } from '@/lib/fox-moments';
+import { useUserSettings } from '@/lib/settings-context';
 
 export default function DashboardScreen() {
   const { signOut } = useAuth();
   const theme = useTheme();
+  const { settings } = useUserSettings();
   const [summary, setSummary] = useState<api.DashboardSummary | null>(null);
   const [logs, setLogs] = useState<api.FoodLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,7 +66,15 @@ export default function DashboardScreen() {
     [load]
   );
 
-  const goal = summary?.goal ?? 2000;
+  // Sourced from the settings context (not summary?.goal) so an edit on the
+  // Goals & Targets screen reflects here on the very next render — the
+  // context updates synchronously on the optimistic write, with no
+  // dependency on a network round-trip or a screen-focus refetch.
+  // GET /food/dashboard/summary's own `goal` field is left untouched
+  // server-side; it stays the source of truth for calorie-total math there,
+  // since it already reads the same users.daily_calorie_goal column this
+  // screen's settings.dailyCalorieGoal is also backed by.
+  const goal = settings.dailyCalorieGoal;
   const calories = summary?.calories ?? 0;
   const progress = goal > 0 ? calories / goal : 0;
   const overGoal = calories > goal;
@@ -72,10 +82,11 @@ export default function DashboardScreen() {
   const { mood, line } = useMemo(() => foxxyState(logs.length, calories, goal), [logs.length, calories, goal]);
   const buckets = useMemo(() => bucketLogs(logs), [logs]);
 
-  // Reasonable default macro split (25/45/30) since the goal is calorie-only.
-  const proteinTarget = (goal * 0.25) / 4;
-  const carbsTarget = (goal * 0.45) / 4;
-  const fatTarget = (goal * 0.3) / 9;
+  // Real per-user stored macro targets (Goals & Targets screen), replacing
+  // the previous hardcoded 25/45/30-of-calorie-goal placeholder split.
+  const proteinTarget = settings.proteinGoalG;
+  const carbsTarget = settings.carbsGoalG;
+  const fatTarget = settings.fatsGoalG;
 
   useEffect(() => {
     if (!hasWavedRef.current && !hasWavedThisSession()) {

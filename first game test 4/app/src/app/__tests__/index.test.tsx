@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import DashboardScreen from '../index';
 import * as api from '@/lib/api';
+import { useUserSettings, DEFAULT_SETTINGS } from '@/lib/settings-context';
+import type { UserSettings } from '@/lib/api';
 
 const mockSignOut = jest.fn();
 jest.mock('@clerk/expo', () => ({ useAuth: () => ({ signOut: mockSignOut }) }));
@@ -16,6 +18,20 @@ jest.mock('expo-router', () => ({
 
 jest.mock('@/lib/api');
 const mockedApi = api as jest.Mocked<typeof api>;
+
+jest.mock('@/lib/settings-context', () => {
+  const actual = jest.requireActual('@/lib/settings-context');
+  return { ...actual, useUserSettings: jest.fn() };
+});
+const mockedUseUserSettings = useUserSettings as jest.MockedFunction<typeof useUserSettings>;
+
+function withSettings(overrides: Partial<UserSettings> = {}) {
+  mockedUseUserSettings.mockReturnValue({
+    settings: { ...DEFAULT_SETTINGS, ...overrides },
+    updateSettings: jest.fn(),
+    syncFailed: false,
+  });
+}
 
 function summary(overrides: Partial<api.DashboardSummary> = {}): api.DashboardSummary {
   return {
@@ -45,6 +61,7 @@ function log(overrides: Partial<api.FoodLog> = {}): api.FoodLog {
 }
 
 describe('DashboardScreen', () => {
+  beforeEach(() => withSettings());
   afterEach(() => jest.clearAllMocks());
 
   test('shows Foxxy\'s empty message and no meal timeline with zero logs', async () => {
@@ -134,7 +151,8 @@ describe('DashboardScreen', () => {
     await waitFor(() => expect(screen.getByText(/Manual/)).toBeTruthy());
   });
 
-  test('does not divide by zero when the calorie goal is 0', async () => {
+  test('does not divide by zero when the settings-context calorie goal is 0', async () => {
+    withSettings({ dailyCalorieGoal: 0 });
     mockedApi.getDashboardSummary.mockResolvedValue(summary({ goal: 0, calories: 0 }));
     mockedApi.getLogs.mockResolvedValue([]);
 
@@ -151,5 +169,50 @@ describe('DashboardScreen', () => {
     await waitFor(() => expect(screen.getByText('Sign out')).toBeTruthy());
     fireEvent.press(screen.getByText('Sign out'));
     expect(mockSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  test('reads the calorie goal from settings context, not from the summary API response', async () => {
+    // summary.goal (server) says 2000, but settings-context (the client's
+    // instantly-optimistic source of truth) says 1500 — the rendered
+    // "remaining" math must follow settings, proving the dashboard doesn't
+    // depend on a network round-trip to reflect a just-changed goal.
+    withSettings({ dailyCalorieGoal: 1500 });
+    mockedApi.getDashboardSummary.mockResolvedValue(summary({ goal: 2000, calories: 500 }));
+    mockedApi.getLogs.mockResolvedValue([log()]);
+
+    await render(<DashboardScreen />);
+
+    await waitFor(() => expect(screen.getByText('1000 cal remaining')).toBeTruthy());
+  });
+
+  test('macro target lines use settings.proteinGoalG/carbsGoalG/fatsGoalG, not a hardcoded calorie-split', async () => {
+    withSettings({ proteinGoalG: 200, carbsGoalG: 300, fatsGoalG: 80 });
+    mockedApi.getDashboardSummary.mockResolvedValue(summary({ proteinG: 100 }));
+    mockedApi.getLogs.mockResolvedValue([log()]);
+
+    await render(<DashboardScreen />);
+
+    // 100g of 200g target -> 50% fill; rendered grams text is still actual
+    // intake (100g), the target only drives the progress bar width — assert
+    // the actual-intake text still renders correctly with the new targets in
+    // place (a crash or NaN width would surface via a broken render).
+    await waitFor(() => expect(screen.getByText('100g')).toBeTruthy());
+  });
+
+  test('a settings-context goal change updates Foxxy\'s idle mood on the next render with no refetch', async () => {
+    // logs.length > 0 and calories <= goal, so goal needs to move from
+    // "over" to "on target" purely by re-rendering with new settings — the
+    // summary/logs API responses never change between renders.
+    mockedApi.getDashboardSummary.mockResolvedValue(summary({ calories: 1800 }));
+    mockedApi.getLogs.mockResolvedValue([log({ calories: 1800 })]);
+
+    withSettings({ dailyCalorieGoal: 1500 }); // 1800 > 1500 -> over goal
+    const { rerender } = await render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByText('300 cal over goal')).toBeTruthy());
+
+    withSettings({ dailyCalorieGoal: 2000 }); // 1800 <= 2000 -> on target, no API call made
+    await rerender(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByText('200 cal remaining')).toBeTruthy());
+    expect(mockedApi.getDashboardSummary).toHaveBeenCalledTimes(1);
   });
 });

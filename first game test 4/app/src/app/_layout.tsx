@@ -5,12 +5,13 @@ import { Bitter_600SemiBold, Bitter_700Bold } from '@expo-google-fonts/bitter';
 import { WorkSans_400Regular, WorkSans_500Medium, WorkSans_700Bold } from '@expo-google-fonts/work-sans';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import AppTabs from '@/components/app-tabs';
 import SignInScreen from './sign-in';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { registerApiTokenGetter } from '@/lib/api';
+import { SettingsProvider } from '@/lib/settings-context';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -29,15 +30,13 @@ function Root() {
   return isSignedIn ? <AppTabs /> : <SignInScreen />;
 }
 
-export default function TabLayout() {
+// Split out so `useColorScheme()` (which reads the settings-context override
+// via useUserSettings()) runs *inside* the SettingsProvider tree rendered by
+// TabLayout below, not in the same component that mounts the provider —
+// a hook call can't reach a Context.Provider it hasn't been rendered under
+// yet.
+function ThemedApp({ fontsLoaded, fontError }: { fontsLoaded: boolean; fontError: Error | null }) {
   const colorScheme = useColorScheme();
-  const [fontsLoaded, fontError] = useFonts({
-    Bitter_600SemiBold,
-    Bitter_700Bold,
-    WorkSans_400Regular,
-    WorkSans_500Medium,
-    WorkSans_700Bold,
-  });
   return (
     <ClerkProvider publishableKey={publishableKey!} tokenCache={tokenCache}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -47,5 +46,20 @@ export default function TabLayout() {
         <Root />
       </ThemeProvider>
     </ClerkProvider>
+  );
+}
+
+export default function TabLayout() {
+  const [fontsLoaded, fontError] = useFonts({
+    Bitter_600SemiBold,
+    Bitter_700Bold,
+    WorkSans_400Regular,
+    WorkSans_500Medium,
+    WorkSans_700Bold,
+  });
+  return (
+    <SettingsProvider>
+      <ThemedApp fontsLoaded={fontsLoaded} fontError={fontError} />
+    </SettingsProvider>
   );
 }
