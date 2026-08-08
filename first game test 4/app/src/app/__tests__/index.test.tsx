@@ -115,6 +115,25 @@ describe('DashboardScreen', () => {
     await waitFor(() => expect(screen.getByText(/AI scan/)).toBeTruthy());
   });
 
+  test('shows "Barcode scan" for barcode-sourced entries (not "Manual")', async () => {
+    mockedApi.getDashboardSummary.mockResolvedValue(summary());
+    mockedApi.getLogs.mockResolvedValue([log({ source: 'barcode' })]);
+
+    await render(<DashboardScreen />);
+
+    await waitFor(() => expect(screen.getByText(/Barcode scan/)).toBeTruthy());
+    expect(screen.queryByText(/· Manual/)).toBeNull();
+  });
+
+  test('shows "Manual" for manually-logged entries', async () => {
+    mockedApi.getDashboardSummary.mockResolvedValue(summary());
+    mockedApi.getLogs.mockResolvedValue([log({ source: 'manual' })]);
+
+    await render(<DashboardScreen />);
+
+    await waitFor(() => expect(screen.getByText(/Manual/)).toBeTruthy());
+  });
+
   test('does not divide by zero when the calorie goal is 0', async () => {
     mockedApi.getDashboardSummary.mockResolvedValue(summary({ goal: 0, calories: 0 }));
     mockedApi.getLogs.mockResolvedValue([]);

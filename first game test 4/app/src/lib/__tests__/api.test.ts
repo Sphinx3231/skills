@@ -115,4 +115,22 @@ describe('api client', () => {
     mockFetchOnce({ ok: false, status: 500, json: async () => ({}) });
     await expect(api.getLogs()).rejects.toMatchObject({ status: 500, message: 'Request failed' });
   });
+
+  test('analyzeText posts a JSON description to /food/analyze-text', async () => {
+    mockFetchOnce({ ok: true, json: async () => ({ foodName: 'Oatmeal' }) });
+    const result = await api.analyzeText('a bowl of oatmeal');
+    expect(result.foodName).toBe('Oatmeal');
+    const [url, options] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toContain('/food/analyze-text');
+    expect(options.headers['Content-Type']).toBe('application/json');
+    expect(JSON.parse(options.body)).toEqual({ description: 'a bowl of oatmeal' });
+  });
+
+  test('lookupBarcode GETs /food/barcode/:code', async () => {
+    mockFetchOnce({ ok: true, json: async () => ({ foodName: 'Nutella' }) });
+    const result = await api.lookupBarcode('3017620422003');
+    expect(result.foodName).toBe('Nutella');
+    const [url] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toContain('/food/barcode/3017620422003');
+  });
 });

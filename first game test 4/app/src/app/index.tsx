@@ -207,7 +207,7 @@ export default function DashboardScreen() {
                               hour: '2-digit',
                               minute: '2-digit',
                             })}{' '}
-                            · {item.source === 'ai' ? 'AI scan' : 'Manual'}
+                            · {sourceLabel(item.source)}
                           </ThemedText>
                         </View>
                         <View style={styles.logRight}>
@@ -232,6 +232,12 @@ export default function DashboardScreen() {
       </SafeAreaView>
     </ThemedView>
   );
+}
+
+function sourceLabel(source: api.FoodLog['source']): string {
+  if (source === 'ai') return 'AI scan';
+  if (source === 'barcode') return 'Barcode scan';
+  return 'Manual';
 }
 
 function MacroCard({ label, grams, target, color }: { label: string; grams: number; target: number; color: string }) {

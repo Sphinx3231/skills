@@ -36,7 +36,20 @@
       ],
       "expo-secure-store",
       "@clerk/expo",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan barcodes."
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow $(PRODUCT_NAME) to use the microphone for voice logging.",
+          "speechRecognitionPermission": "Allow $(PRODUCT_NAME) to use speech recognition for voice logging."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
