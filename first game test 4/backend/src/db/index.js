@@ -55,7 +55,7 @@ db.exec(`
   -- CHECK constraint, matching this codebase's existing route-layer
   -- validation style (see food.js's barcode regex / billing gate).
   -- equipped_* default to 1 (not 0): rendering already gates on BOTH
-  -- unlocked and equipped (see app/src/app/companion.tsx), so a locked item
+  -- unlocked and equipped (see app/src/app/(tabs)/companion.tsx), so a locked item
   -- defaulting to "equipped" is harmless and exactly preserves today's
   -- behavior for already-unlocked items.
   CREATE TABLE IF NOT EXISTS user_settings (

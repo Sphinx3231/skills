@@ -32,7 +32,7 @@ the API in `backend/`.
   matching Clerk's hosted look (`app/src/app/sign-in.tsx`). Backend provisions a user row on
   first authenticated request (`backend/src/middleware/auth.js`).
 - **Food logging**: manual entry + AI photo analysis (`backend/src/routes/food.js`,
-  `backend/src/lib/anthropic.js`). The "Quick Snare" log screen (`app/src/app/log.tsx`) has
+  `backend/src/lib/anthropic.js`). The "Quick Snare" log screen (`app/src/app/(tabs)/log.tsx`) has
   a tile hub (Snap & Track / From library working; Voice Input / Barcode Hunt are honest
   "Coming soon" placeholders — not implemented) plus a "Quick Stash" row of frequently
   logged meals for one-tap re-logging (`GET /food/frequent`).
@@ -40,13 +40,13 @@ the API in `backend/`.
   `trial_started_at`), gates only the AI-photo-analyze endpoint (manual logging, dashboard,
   companion stay free forever). Stripe Checkout wired but **not configured** — see Pending
   below.
-- **Dashboard** ("The Den", `app/src/app/index.tsx`): Foxxy hero widget with a
+- **Dashboard** ("The Den", `app/src/app/(tabs)/index.tsx`): Foxxy hero widget with a
   mood/one-liner reacting to today's calories, a "Tail Sweep" circular progress ring
   (`app/src/components/tail-ring.tsx`), macro cards (protein/carbs/fat, woodland palette),
   and a "Daily Forage" meal timeline grouped by time-of-day bucket
   (`app/src/lib/dashboard-logic.ts` — pure, unit-tested logic extracted out of the screen
   for testability).
-- **Companion/gamification** (`app/src/app/companion.tsx`): streak counter, wardrobe
+- **Companion/gamification** (`app/src/app/(tabs)/companion.tsx`): streak counter, wardrobe
   unlocks at streak 3/7/14/30 (scarf/hat/backpack/crown), all driven by
   `backend/src/routes/companion.js`.
 - **Foxxy character** (`app/src/components/fox-companion.tsx`): a **hand-drawn
@@ -104,6 +104,34 @@ the API in `backend/`.
   `.claude/skills/run-foxbite-web/`, documents how to drive the web app headlessly
   (Playwright, React Native Web's click gotchas, reading Clerk's raw API response) for
   next time something needs verifying past sign-in.
+
+- **Settings navigation restructure** (ticket 004,
+  `docs/tickets/004-settings-navigation-unreachable.md`): the User Settings
+  feature (ticket 003) shipped with the Settings screens themselves correct
+  but structurally unreachable — the root layout rendered `<AppTabs />`
+  (`NativeTabs`) directly with no enclosing `Stack`, so `router.push('/settings')`
+  silently fell back to the Today dashboard on every platform. Fixed by
+  moving `index`/`log`/`companion` into a new `app/src/app/(tabs)/` route
+  group, adding `(tabs)/_layout.tsx` and `settings/_layout.tsx`, and
+  rewriting the root `_layout.tsx` as a `Stack` with `unstable_settings`
+  anchors on both the root (`'(tabs)'`) and the nested settings layout
+  (`'index'`) so back-navigation survives a hard refresh on any settings
+  screen. Full gated-build pipeline (2 plan-review rounds, Sonnet build,
+  independent Sonnet QA redo, Opus tech-lead, Opus CTO) — verdict MERGE.
+  See `docs/outcomes/settings-navigation-outcome.md` and
+  `-verdict.md`.
+  **UNRESOLVED as of this commit**: both the builder's and QA's independent
+  live headless-browser click-throughs (real signed-in Playwright sessions)
+  confirmed the gear icon correctly lands on `/settings`, but the user
+  reported still not seeing Settings when testing manually in their own
+  browser at `localhost:8098` afterward — even after a full dev-server
+  restart with `--clear` to rule out a stale Metro bundle. Root cause not
+  yet identified; possible leads for next session: browser-side cache
+  (hard reload / clear site data, not just server restart), a difference
+  between the automated Playwright session's state and the user's actual
+  signed-in account/session, or a client-side error swallowed silently
+  (check the browser devtools console, not just server logs, next time this
+  is investigated).
 
 ### Pending / not done
 - `backend/.env` has no real `ANTHROPIC_API_KEY` — AI photo-scan will fail until it's set.
