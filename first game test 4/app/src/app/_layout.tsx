@@ -4,10 +4,10 @@ import { tokenCache } from '@clerk/expo/token-cache';
 import { Bitter_600SemiBold, Bitter_700Bold } from '@expo-google-fonts/bitter';
 import { WorkSans_400Regular, WorkSans_500Medium, WorkSans_700Bold } from '@expo-google-fonts/work-sans';
 import { useFonts } from 'expo-font';
+import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
 import SignInScreen from './sign-in';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { registerApiTokenGetter } from '@/lib/api';
@@ -22,12 +22,23 @@ if (!publishableKey) {
   );
 }
 
+export const unstable_settings = {
+  anchor: '(tabs)',
+};
+
 function Root() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   registerApiTokenGetter(getToken);
 
   if (!isLoaded) return null;
-  return isSignedIn ? <AppTabs /> : <SignInScreen />;
+  if (!isSignedIn) return <SignInScreen />;
+
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="settings" />
+    </Stack>
+  );
 }
 
 // Split out so `useColorScheme()` (which reads the settings-context override
