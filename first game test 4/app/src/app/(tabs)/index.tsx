@@ -2,7 +2,7 @@ import { useAuth } from '@clerk/expo';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { ActivityIndicator, Animated, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -28,6 +28,7 @@ import { useUserSettings } from '@/lib/settings-context';
 export default function DashboardScreen() {
   const { signOut } = useAuth();
   const theme = useTheme();
+  const router = useRouter();
   const { settings } = useUserSettings();
   const [summary, setSummary] = useState<api.DashboardSummary | null>(null);
   const [logs, setLogs] = useState<api.FoodLog[]>([]);
@@ -117,11 +118,22 @@ export default function DashboardScreen() {
                 Today
               </ThemedText>
             </View>
-            <PressableScale onPress={() => signOut()} hitSlop={8} scaleTo={0.9}>
-              <ThemedText type="link" themeColor="textSecondary">
-                Sign out
-              </ThemedText>
-            </PressableScale>
+            <View style={styles.headerActions}>
+              <PressableScale
+                onPress={() => router.push('/settings')}
+                hitSlop={8}
+                scaleTo={0.9}
+                testID="settings-gear-button"
+                accessibilityLabel="Settings"
+                style={styles.gearButton}>
+                <Ionicons name="settings-outline" size={24} color={theme.textSecondary} />
+              </PressableScale>
+              <PressableScale onPress={() => signOut()} hitSlop={8} scaleTo={0.9}>
+                <ThemedText type="link" themeColor="textSecondary">
+                  Sign out
+                </ThemedText>
+              </PressableScale>
+            </View>
           </View>
 
           {loading && !summary ? (
@@ -297,6 +309,8 @@ const styles = StyleSheet.create({
   },
   eyebrow: { letterSpacing: 1.2, fontSize: 11, marginBottom: 2 },
   title: { fontSize: 28, lineHeight: 34 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  gearButton: { padding: Spacing.one },
   loader: { marginTop: Spacing.six },
 
   foxCard: {

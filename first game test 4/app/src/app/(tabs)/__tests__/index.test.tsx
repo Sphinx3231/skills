@@ -7,6 +7,7 @@ import type { UserSettings } from '@/lib/api';
 const mockSignOut = jest.fn();
 jest.mock('@clerk/expo', () => ({ useAuth: () => ({ signOut: mockSignOut }) }));
 
+const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
   useFocusEffect: (cb: () => void) => {
     const { useEffect } = jest.requireActual('react');
@@ -14,6 +15,7 @@ jest.mock('expo-router', () => ({
       cb();
     }, []);
   },
+  useRouter: () => ({ push: mockPush }),
 }));
 
 jest.mock('@/lib/api');
@@ -169,6 +171,17 @@ describe('DashboardScreen', () => {
     await waitFor(() => expect(screen.getByText('Sign out')).toBeTruthy());
     fireEvent.press(screen.getByText('Sign out'));
     expect(mockSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  test('tapping the settings gear icon navigates to /settings', async () => {
+    mockedApi.getDashboardSummary.mockResolvedValue(summary({ calories: 0, entries: 0 }));
+    mockedApi.getLogs.mockResolvedValue([]);
+
+    await render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByTestId('settings-gear-button')).toBeTruthy());
+
+    fireEvent.press(screen.getByTestId('settings-gear-button'));
+    expect(mockPush).toHaveBeenCalledWith('/settings');
   });
 
   test('reads the calorie goal from settings context, not from the summary API response', async () => {

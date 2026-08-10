@@ -6,8 +6,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 
 const mockNavigate = jest.fn();
+const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ navigate: mockNavigate }),
+  useRouter: () => ({ navigate: mockNavigate, push: mockPush }),
   useFocusEffect: (cb: () => void) => {
     const { useEffect } = jest.requireActual('react');
     useEffect(() => {
@@ -223,6 +224,14 @@ describe('LogScreen — idle state', () => {
 
     await waitFor(() => expect(mockedPicker.launchCameraAsync).toHaveBeenCalled());
     expect(screen.queryByText('Foxxy is sniffing out the details…')).toBeNull();
+  });
+
+  test('tapping the settings gear icon navigates to /settings', async () => {
+    await render(<LogScreen />);
+    await waitFor(() => expect(screen.getByTestId('settings-gear-button')).toBeTruthy());
+
+    fireEvent.press(screen.getByTestId('settings-gear-button'));
+    expect(mockPush).toHaveBeenCalledWith('/settings');
   });
 });
 

@@ -296,13 +296,26 @@ export default function LogScreen() {
 
   return (
     <ThemedView style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <ThemedText type="small" themeColor="textSecondary" style={styles.eyebrow}>
-          QUICK SNARE
-        </ThemedText>
-        <ThemedText type="title" style={styles.title}>
-          Log a meal
-        </ThemedText>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.headerRow}>
+          <View>
+            <ThemedText type="small" themeColor="textSecondary" style={styles.eyebrow}>
+              QUICK SNARE
+            </ThemedText>
+            <ThemedText type="title" style={styles.title}>
+              Log a meal
+            </ThemedText>
+          </View>
+          <PressableScale
+            onPress={() => router.push('/settings')}
+            hitSlop={8}
+            scaleTo={0.9}
+            testID="settings-gear-button"
+            accessibilityLabel="Settings"
+            style={styles.gearButton}>
+            <Ionicons name="settings-outline" size={24} color={theme.textSecondary} />
+          </PressableScale>
+        </View>
 
         {step === 'idle' && (
           <>
@@ -345,7 +358,11 @@ export default function LogScreen() {
                 <ThemedText type="smallBold" style={styles.stashTitle}>
                   Quick Stash
                 </ThemedText>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stashRow}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.stashScroll}
+                  contentContainerStyle={styles.stashRow}>
                   {frequent.map((item) => (
                     <PressableScale
                       key={item.food_name}
@@ -642,6 +659,7 @@ function TrialEndedPaywall({ billing, onDismiss }: { billing: api.BillingStatus;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, alignItems: 'center' },
+  scroll: { flex: 1, alignSelf: 'stretch' },
   scrollContent: {
     width: '100%',
     maxWidth: MaxContentWidth,
@@ -651,8 +669,10 @@ const styles = StyleSheet.create({
     paddingBottom: BottomTabInset + Spacing.four,
     gap: Spacing.three,
   },
-  eyebrow: { letterSpacing: 1.2, fontSize: 11, marginBottom: -8 },
+  eyebrow: { letterSpacing: 1.2, fontSize: 11, marginBottom: 2 },
   title: { fontSize: 26, lineHeight: 32 },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
+  gearButton: { padding: Spacing.one },
 
   hub: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   hubTile: {
@@ -669,6 +689,7 @@ const styles = StyleSheet.create({
 
   stashSection: { gap: Spacing.two, marginTop: Spacing.one },
   stashTitle: {},
+  stashScroll: { width: '100%', overflow: 'hidden' },
   stashRow: { gap: Spacing.two, paddingRight: Spacing.two },
   stashCard: {
     borderRadius: 16,
