@@ -377,6 +377,21 @@ describe('LogScreen — analyze + review flow', () => {
 });
 
 describe('LogScreen — Voice Input', () => {
+  // Guards against the wrapper silently resolving to its "unavailable"
+  // branch in a way that would make every other "Voice Input works" test
+  // below pass vacuously (e.g. if the guard swallowed the tap before ever
+  // touching the mocked module). With this mock in place, the wrapper's own
+  // `require('expo-speech-recognition')` picks it up, so availability must
+  // be true and a tap must reach the mocked module directly.
+  test('sanity: the mocked speech module is genuinely wired up (available, and start() called on tap)', async () => {
+    await render(<LogScreen />);
+
+    await fireEvent.press(screen.getByText('Voice Input'));
+
+    await waitFor(() => expect(mockedSpeech.requestPermissionsAsync).toHaveBeenCalled());
+    await waitFor(() => expect(mockedSpeech.start).toHaveBeenCalledWith({ lang: 'en-US', interimResults: true }));
+  });
+
   test('shows a permission-denied error and never starts listening', async () => {
     mockedSpeech.requestPermissionsAsync.mockResolvedValue({ granted: false } as any);
     await render(<LogScreen />);
