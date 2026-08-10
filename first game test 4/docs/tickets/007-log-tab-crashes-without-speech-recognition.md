@@ -1,6 +1,6 @@
 # Ticket 007: Log tab disappears entirely when the native speech-recognition module isn't linked
 
-Status: **In progress** (plan being written)
+Status: **Complete** — merged to `main` via `ab7209d`.
 
 ## Summary
 

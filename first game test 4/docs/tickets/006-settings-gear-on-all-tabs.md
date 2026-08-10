@@ -1,6 +1,6 @@
 # Ticket 006: Settings gear icon only reachable from Companion tab
 
-Status: **In progress** (plan being written)
+Status: **Complete** — merged to `main` via `0990251`.
 
 ## Summary
 
