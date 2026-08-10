@@ -4,12 +4,6 @@ import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'ex
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
-  ExpoSpeechRecognitionModule,
-  useSpeechRecognitionEvent,
-  type ExpoSpeechRecognitionResultEvent,
-  type ExpoSpeechRecognitionErrorEvent,
-} from 'expo-speech-recognition';
-import {
   ActivityIndicator,
   Image,
   Platform,
@@ -29,6 +23,15 @@ import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
 import { shouldPlayFoxMoment } from '@/lib/fox-moments';
+import {
+  isSpeechRecognitionAvailable,
+  requestSpeechPermissions,
+  startSpeechRecognition,
+  stopSpeechRecognition,
+  useSpeechRecognitionEvent,
+  type ExpoSpeechRecognitionResultEvent,
+  type ExpoSpeechRecognitionErrorEvent,
+} from '@/lib/speech-recognition';
 
 type Step = 'idle' | 'listening' | 'scanning' | 'analyzing' | 'review' | 'saving' | 'logged';
 
@@ -133,7 +136,7 @@ export default function LogScreen() {
       // Stop the recognizer as soon as a final transcript is accepted —
       // on native Android the mic can otherwise stay open after the UI has
       // already moved on to analyzing/review.
-      ExpoSpeechRecognitionModule.stop();
+      stopSpeechRecognition();
       submitDescription(text);
     }
   });
@@ -159,11 +162,15 @@ export default function LogScreen() {
   });
 
   async function startVoiceInput() {
+    if (!isSpeechRecognitionAvailable) {
+      setError('Voice Input needs the full app build — not available in this preview.');
+      return;
+    }
     if (voiceStartInFlightRef.current) return;
     voiceStartInFlightRef.current = true;
     setError(null);
     try {
-      const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      const permission = await requestSpeechPermissions();
       if (!permission.granted) {
         setError('Permission to use the microphone was denied.');
         return;
@@ -171,7 +178,7 @@ export default function LogScreen() {
       voiceSubmittedRef.current = false;
       setTranscript('');
       setStep('listening');
-      ExpoSpeechRecognitionModule.start({ lang: 'en-US', interimResults: true });
+      startSpeechRecognition({ lang: 'en-US', interimResults: true });
     } finally {
       voiceStartInFlightRef.current = false;
     }
@@ -280,7 +287,7 @@ export default function LogScreen() {
   }
 
   function cancelListening() {
-    ExpoSpeechRecognitionModule.stop();
+    stopSpeechRecognition();
     setStep('idle');
     setTranscript('');
   }
@@ -336,7 +343,7 @@ export default function LogScreen() {
               <HubTile
                 icon="mic"
                 label="Voice Input"
-                sublabel="Say what you ate"
+                sublabel={isSpeechRecognitionAvailable ? 'Say what you ate' : 'Needs the full app build'}
                 onPress={startVoiceInput}
               />
               <HubTile
