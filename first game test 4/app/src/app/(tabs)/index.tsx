@@ -108,7 +108,7 @@ export default function DashboardScreen() {
     <ThemedView style={styles.screen}>
       <AmbientGlow variant="warm" />
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.header}>
             <View>
               <ThemedText type="small" themeColor="textSecondary" style={styles.eyebrow}>
@@ -295,7 +295,9 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: MaxContentWidth,
   },
+  scroll: { alignSelf: 'stretch' },
   scrollContent: {
+    width: '100%',
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.four,
     paddingBottom: BottomTabInset,
