@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
@@ -22,6 +22,7 @@ import { BottomTabInset, CardShadow, CardShadowSoft, MaxContentWidth, Spacing } 
 import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
+import { classifyFoodPhoto, onModelLoadProgress, type ModelLoadProgress } from '@/lib/food-recognition';
 import { shouldPlayFoxMoment } from '@/lib/fox-moments';
 import { prepareImageForUpload } from '@/lib/image-prep';
 import {
@@ -44,6 +45,12 @@ export default function LogScreen() {
   const [result, setResult] = useState<api.FoodAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [paywallBilling, setPaywallBilling] = useState<api.BillingStatus | null>(null);
+  // Web-only in practice: onModelLoadProgress's native implementation is a
+  // permanent no-op (see food-recognition.ts), so this never updates off
+  // `null` on mobile — no Platform.OS check needed to keep this native-safe.
+  // Drives the ~15s+ cold-load progress text in the 'analyzing' step below
+  // instead of a bare unlabeled spinner (ticket 011).
+  const [modelLoadProgress, setModelLoadProgress] = useState<ModelLoadProgress | null>(null);
   const [frequent, setFrequent] = useState<api.FrequentFood[]>([]);
   const [stashingId, setStashingId] = useState<string | null>(null);
   const [logSource, setLogSource] = useState<'ai' | 'barcode'>('ai');
@@ -75,6 +82,8 @@ export default function LogScreen() {
     }, [step])
   );
 
+  useEffect(() => onModelLoadProgress(setModelLoadProgress), []);
+
   async function pickAndAnalyze(fromCamera: boolean) {
     setError(null);
     const permission = fromCamera
@@ -96,7 +105,7 @@ export default function LogScreen() {
     setStep('analyzing');
 
     try {
-      const analysis = await api.analyzePhoto(prepared);
+      const analysis = await classifyFoodPhoto(prepared);
       setLogSource('ai');
       rawResultRef.current = analysis;
       setResult(analysis);
@@ -462,7 +471,9 @@ export default function LogScreen() {
           <ThemedView style={styles.centerRow}>
             <ActivityIndicator color={theme.accent} />
             <ThemedText type="small" themeColor="textSecondary">
-              Foxxy is sniffing out the details…
+              {modelLoadProgress?.status === 'downloading'
+                ? `Downloading the food-recognition model — this only happens once (${Math.round(modelLoadProgress.progress)}%)…`
+                : 'Foxxy is sniffing out the details…'}
             </ThemedText>
           </ThemedView>
         )}
