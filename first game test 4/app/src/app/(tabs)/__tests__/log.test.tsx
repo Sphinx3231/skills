@@ -360,6 +360,63 @@ describe('LogScreen — analyze + review flow', () => {
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'), { timeout: 3000 });
   });
 
+  test('saving after editing a field sends the EDITED value to createLog, not the original analyzePhoto() response value (ticket 010: raw-response capture must not affect the actually-saved values)', async () => {
+    mockedPicker.launchCameraAsync.mockResolvedValue({ canceled: false, assets: [asset] } as any);
+    mockedApi.analyzePhoto.mockResolvedValue(analysis);
+    mockedApi.createLog.mockResolvedValue({} as api.FoodLog);
+
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Snap & Track'));
+    await waitFor(() => expect(screen.getByDisplayValue('Grilled chicken')).toBeTruthy());
+
+    await fireEvent.changeText(screen.getByDisplayValue('Grilled chicken'), 'Grilled chicken breast');
+    await fireEvent.changeText(screen.getByDisplayValue('520'), '600');
+
+    await fireEvent.press(screen.getByText('Save to today'));
+
+    await waitFor(() =>
+      expect(mockedApi.createLog).toHaveBeenCalledWith(
+        expect.objectContaining({ foodName: 'Grilled chicken breast', calories: 600 })
+      )
+    );
+    // The call must NOT have gone out with the original, unedited values.
+    const [payload] = mockedApi.createLog.mock.calls[0];
+    expect(payload.foodName).not.toBe('Grilled chicken');
+    expect(payload.calories).not.toBe(520);
+  });
+
+  test('the empty/"couldn\'t identify" result renders zeroed fields and blocks Save with a clear message instead of round-tripping to the backend', async () => {
+    mockedPicker.launchCameraAsync.mockResolvedValue({ canceled: false, assets: [asset] } as any);
+    mockedApi.analyzePhoto.mockResolvedValue({
+      foodName: '',
+      calories: 0,
+      proteinG: 0,
+      carbsG: 0,
+      fatG: 0,
+      confidence: 'low',
+      notes: '',
+      caveat: "Couldn't identify a food in this photo — enter the details yourself, or try a clearer photo.",
+    });
+
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Snap & Track'));
+
+    await waitFor(() =>
+      expect(screen.getByText(/Couldn't identify a food in this photo/)).toBeTruthy()
+    );
+    // Query the macro fields by their label, not getByDisplayValue('0') —
+    // all four macro fields would match '0' here.
+    expect(screen.getByText('Calories')).toBeTruthy();
+    expect(screen.getByText('Protein (g)')).toBeTruthy();
+    expect(screen.getByText('Carbs (g)')).toBeTruthy();
+    expect(screen.getByText('Fat (g)')).toBeTruthy();
+
+    await fireEvent.press(screen.getByText('Save to today'));
+
+    await waitFor(() => expect(screen.getByText('Enter a food name before saving.')).toBeTruthy());
+    expect(mockedApi.createLog).not.toHaveBeenCalled();
+  });
+
   test('a save failure shows an error and stays on the review card', async () => {
     mockedPicker.launchCameraAsync.mockResolvedValue({ canceled: false, assets: [asset] } as any);
     mockedApi.analyzePhoto.mockResolvedValue(analysis);

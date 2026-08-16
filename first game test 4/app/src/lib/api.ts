@@ -44,11 +44,16 @@ export type FoodAnalysis = {
   fatG: number;
   confidence: 'low' | 'medium' | 'high';
   notes: string;
-  // Set only for barcode lookups that had to fall back to per-100g nutriment
-  // data (no stated serving size on the product) — null/absent otherwise.
-  // Carries real visual weight in the review card (styled like the
-  // low-confidence banner), unlike `notes`' muted treatment, since the user
-  // must act on it (mentally scale to their actual portion).
+  // Set for barcode lookups that had to fall back to per-100g nutriment data
+  // (no stated serving size on the product), AND unconditionally for every
+  // local-CLIP photo scan (ticket 010) — either a "couldn't identify this
+  // photo" message, or a "this is a database default for one standard
+  // serving, not measured from your photo" reminder, or (when a reject
+  // anchor scored near the top alongside a real food label) a "double-check
+  // this before saving" flag. Null/absent for manual entries and voice/
+  // text-description scans. Carries real visual weight in the review card
+  // (styled like the low-confidence banner), unlike `notes`' muted
+  // treatment, since the user must act on it.
   caveat?: string | null;
 };
 

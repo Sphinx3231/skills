@@ -27,6 +27,12 @@ mock.module("../src/lib/anthropic.js", {
   },
 });
 
+mock.module("../src/lib/local-food-analysis.js", {
+  exports: {
+    analyzeFoodPhotoLocally: async () => ({}),
+  },
+});
+
 const { foodRouter } = await import("../src/routes/food.js");
 
 const app = express();
