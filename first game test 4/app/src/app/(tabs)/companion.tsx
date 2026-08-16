@@ -74,7 +74,7 @@ export default function CompanionScreen() {
     <ThemedView style={styles.screen}>
       <AmbientGlow variant="cool" />
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.headerRow}>
             <ThemedText type="title" style={styles.title}>
               Your companion
@@ -212,7 +212,9 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: MaxContentWidth,
   },
+  scroll: { alignSelf: 'stretch' },
   scrollContent: {
+    width: '100%',
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.four,
     paddingBottom: BottomTabInset,
