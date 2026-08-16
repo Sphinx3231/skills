@@ -43,7 +43,11 @@ import { type PropsWithChildren } from 'react';
 //     the Log tab). Keeping the latest state queryable lets a late
 //     subscriber synchronously catch up to whatever's already true instead
 //     of only hearing about what happens next.
-const CLIP_LOADER_SCRIPT = `
+// Exported (not just module-private) so the test suite can run this script's
+// logic directly in a simulated environment — see __tests__/+html.test.tsx.
+// The script itself is never executed by Jest/Node; it only ever runs as
+// literal HTML in a real browser.
+export const CLIP_LOADER_SCRIPT = `
 import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0';
 
 function reportProgress(detail) {
