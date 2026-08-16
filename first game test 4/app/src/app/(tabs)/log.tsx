@@ -23,6 +23,7 @@ import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { useTheme } from '@/hooks/use-theme';
 import * as api from '@/lib/api';
 import { shouldPlayFoxMoment } from '@/lib/fox-moments';
+import { prepareImageForUpload } from '@/lib/image-prep';
 import {
   isSpeechRecognitionAvailable,
   requestSpeechPermissions,
@@ -80,15 +81,12 @@ export default function LogScreen() {
     if (picked.canceled || !picked.assets?.[0]) return;
 
     const asset = picked.assets[0];
-    setPhotoUri(asset.uri);
+    const prepared = await prepareImageForUpload(asset);
+    setPhotoUri(prepared.uri); // was: asset.uri — review-screen preview should show what's actually uploaded
     setStep('analyzing');
 
     try {
-      const analysis = await api.analyzePhoto({
-        uri: asset.uri,
-        name: asset.fileName ?? 'photo.jpg',
-        type: asset.mimeType ?? 'image/jpeg',
-      });
+      const analysis = await api.analyzePhoto(prepared);
       setLogSource('ai');
       setResult(analysis);
       setStep('review');
