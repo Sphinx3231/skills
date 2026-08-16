@@ -31,12 +31,23 @@
 // dev-client APK (Expo Go, which DOES bundle this native module, was used
 // for all other verification in this ticket).
 
-// Claude's vision input caps the useful long edge around 2576px (newer
-// models) — anything larger is downscaled server-side before the model
-// ever sees it, so this resize discards no fidelity the model would
-// otherwise use. 1024px sits comfortably below that cap while cutting
-// typical multi-MB camera captures dramatically. Adjust here, not inline,
-// if Step 4's before/after photo review finds real detail loss.
+// Historical rationale (Claude vision, retired by ticket 010): Claude's
+// vision input capped the useful long edge around 2576px, so 1024px sat
+// comfortably below that cap while cutting typical multi-MB camera captures
+// dramatically before the upload. Ticket 010 replaced Claude with a local
+// CLIP classifier (ticket 010, backend-side) and ticket 011 replaced that
+// with an in-browser CLIP classifier on web — CLIP's own preprocessing
+// resizes to a small fixed input size (224x224) regardless, so this
+// constant's cap doesn't protect model fidelity for either path today. It's
+// kept at 1024px anyway because it still meaningfully shrinks the
+// bytes actually uploaded to the backend on mobile (still relevant there —
+// mobile still calls POST /food/analyze) and the bytes handed to the
+// in-browser classifier on web (smaller image = less client-side decode/
+// preprocessing work, even though the model's own resize would happen
+// regardless). Not upload-size-motivated in the "reduce a network transfer"
+// sense on web specifically, since web's classification never leaves the
+// browser — see local-food-analysis's non-goals note. Adjust here, not
+// inline, if a future photo review finds real detail loss.
 const JPEG_QUALITY = 0.8;
 
 const MAX_DIMENSION = 1024;
@@ -111,16 +122,22 @@ export async function prepareImageForUpload(asset: {
     const saved = await resized.saveAsync({ format: SaveFormat.JPEG, compress: JPEG_QUALITY });
     return { uri: saved.uri, name: 'photo.jpg', type: 'image/jpeg' };
   } catch (err) {
-    const isGuaranteedBackendFailure =
+    // Distinct log line for inputs the fallback can't actually rescue. On
+    // mobile this still means exactly what it always has: a HEIC/HEIF
+    // fallback carries a mimetype the backend's own allowlist (food.js)
+    // rejects with a 400, so it isn't a benign "resize failed, original
+    // still works" case there. On web (ticket 011) there is no backend
+    // allowlist in this path at all — the fallback goes straight to the
+    // in-browser CLIP classifier instead — but a HEIC/HEIF source is still
+    // effectively guaranteed to fail there too, since most browsers'
+    // canvas/image decoders can't read HEIC either; it just fails at
+    // classification time instead of at a mimetype-allowlist check. Either
+    // way this is not a benign fallback, so it's still worth its own log
+    // line rather than being lumped in with the generic warn below.
+    const isGuaranteedDownstreamFailure =
       asset.mimeType === 'image/heic' || asset.mimeType === 'image/heif';
-    // Distinct log line for inputs the fallback can't actually rescue —
-    // an original HEIC/HEIF falls back to a mimetype the backend's own
-    // allowlist (food.js) rejects with a 400, so this isn't a benign
-    // "resize failed, original still works" case. Keeping this separate
-    // from the generic warn below makes real-world frequency of each
-    // class visible rather than lumped together.
-    if (isGuaranteedBackendFailure) {
-      console.warn('[image-prep] manipulation failed on a HEIC/HEIF source — fallback will still fail server-side', err);
+    if (isGuaranteedDownstreamFailure) {
+      console.warn('[image-prep] manipulation failed on a HEIC/HEIF source — fallback will still fail downstream (backend allowlist on mobile, browser decode on web)', err);
     } else {
       console.warn('[image-prep] resize/compress failed, uploading original photo', err);
     }

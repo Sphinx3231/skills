@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { AccessibilityInfo } from 'react-native';
 import LogScreen from '../log';
 import * as api from '@/lib/api';
+import * as foodRecognition from '@/lib/food-recognition';
 import * as ImagePicker from 'expo-image-picker';
 import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 
@@ -86,6 +87,29 @@ jest.mock('@/lib/api', () => ({
   createCheckoutSession: jest.fn(),
 }));
 const mockedApi = api as jest.Mocked<typeof api>;
+
+// jest-expo's default platform resolution means log.tsx's
+// `import ... from '@/lib/food-recognition'` (no `.web` suffix) resolves to
+// the NATIVE file here, same as it would in a real native build — so every
+// existing test below that only touches `mockedApi.analyzePhoto` is, by
+// construction, exercising mobile's real code path (food-recognition.ts is
+// an unmocked, thin passthrough to api.analyzePhoto). This mock exists only
+// to simulate the two web-specific *error shapes* food-recognition.web.ts
+// can throw (an expired-trial 402, and a local-inference failure) so this
+// file can verify log.tsx's existing, unmodified catch logic handles both
+// correctly — it does NOT exercise food-recognition.web.ts itself (that
+// module is tested directly, via an explicit-path import, in
+// food-recognition.web.test.ts). By default this just forwards to the
+// (already mocked) api.analyzePhoto, so it changes nothing for any test
+// that doesn't explicitly override it with mockRejectedValueOnce.
+jest.mock('@/lib/food-recognition', () => {
+  const realApi = require('@/lib/api');
+  return {
+    classifyFoodPhoto: jest.fn((photo: unknown) => realApi.analyzePhoto(photo)),
+    onModelLoadProgress: jest.fn(() => () => {}),
+  };
+});
+const mockedClassifyFoodPhoto = foodRecognition.classifyFoodPhoto as jest.Mock;
 const mockedPicker = ImagePicker as jest.Mocked<typeof ImagePicker>;
 const mockedSpeech = ExpoSpeechRecognitionModule as jest.Mocked<typeof ExpoSpeechRecognitionModule>;
 
@@ -291,6 +315,46 @@ describe('LogScreen — analyze + review flow', () => {
     await fireEvent.press(screen.getByText('Snap & Track'));
 
     await waitFor(() => expect(screen.getByText('Your free month is up')).toBeTruthy());
+  });
+
+  // The two tests below simulate what food-recognition.web.ts (ticket 011)
+  // throws for its client-side billing pre-check and its local-inference
+  // failure path, by overriding the mocked classifyFoodPhoto() directly —
+  // NOT by exercising the real .web.ts file (jest-expo resolves the
+  // platform-less `@/lib/food-recognition` specifier to the native file in
+  // this test environment; food-recognition.web.ts itself is covered by
+  // food-recognition.web.test.ts's explicit-path import). What these two
+  // tests verify is that log.tsx's existing, UNMODIFIED pickAndAnalyze()
+  // catch logic correctly handles both error shapes web can now throw —
+  // proving the plan's claim that no log.tsx branch needed to change for
+  // either case.
+  test('web: an expired-trial billing pre-check failure shows the same trial-ended paywall as mobile\'s 402, with zero log.tsx changes needed', async () => {
+    mockedPicker.launchCameraAsync.mockResolvedValue({ canceled: false, assets: [asset] } as any);
+    mockedClassifyFoodPhoto.mockRejectedValueOnce(
+      new api.ApiError(402, 'Your free trial has ended', {
+        billing: { status: 'expired', trialEndsAt: '2026-01-01T00:00:00.000Z', daysLeft: 0 },
+      })
+    );
+
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Snap & Track'));
+
+    await waitFor(() => expect(screen.getByText('Your free month is up')).toBeTruthy());
+    // The real backend was never called for this path.
+    expect(mockedApi.analyzePhoto).not.toHaveBeenCalled();
+  });
+
+  test('web: a local-inference failure shows an honest message, not the generic "Could not reach the server" string', async () => {
+    mockedPicker.launchCameraAsync.mockResolvedValue({ canceled: false, assets: [asset] } as any);
+    mockedClassifyFoodPhoto.mockRejectedValueOnce(
+      new api.ApiError(0, 'Could not classify this photo — try again.')
+    );
+
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Snap & Track'));
+
+    await waitFor(() => expect(screen.getByText('Could not classify this photo — try again.')).toBeTruthy());
+    expect(screen.queryByText('Could not reach the server.')).toBeNull();
   });
 
   test('editing the review fields updates their values', async () => {

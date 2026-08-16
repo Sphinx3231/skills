@@ -136,7 +136,11 @@ describe('prepareImageForUpload', () => {
     warnSpy.mockRestore();
   });
 
-  it('falls back with a distinct "guaranteed backend failure" warning for a HEIC/HEIF source', async () => {
+  it('falls back with a distinct "guaranteed downstream failure" warning for a HEIC/HEIF source', async () => {
+    // Message text updated by ticket 011 (this codebase's on-device web
+    // recognition ticket): the fallback's HEIC/HEIF failure is no longer
+    // backend-specific now that web classifies locally in-browser instead
+    // of always calling the backend — see image-prep.ts's comment.
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     mockManipulate.mockImplementation(() => {
       throw new Error('native module unavailable');
@@ -147,7 +151,7 @@ describe('prepareImageForUpload', () => {
 
     expect(result).toEqual({ uri: heicAsset.uri, name: 'photo.heic', type: 'image/heic' });
     expect(warnSpy).toHaveBeenCalledWith(
-      '[image-prep] manipulation failed on a HEIC/HEIF source — fallback will still fail server-side',
+      '[image-prep] manipulation failed on a HEIC/HEIF source — fallback will still fail downstream (backend allowlist on mobile, browser decode on web)',
       expect.any(Error)
     );
     warnSpy.mockRestore();
