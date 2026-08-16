@@ -6,6 +6,7 @@ import { foodRouter } from "./routes/food.js";
 import { companionRouter } from "./routes/companion.js";
 import { billingRouter, stripeWebhookHandler } from "./routes/billing.js";
 import { userRouter } from "./routes/user.js";
+import { getClassifier } from "./lib/local-food-recognition.js";
 
 if (!process.env.CLERK_SECRET_KEY || !process.env.CLERK_PUBLISHABLE_KEY) {
   console.error(
@@ -15,7 +16,7 @@ if (!process.env.CLERK_SECRET_KEY || !process.env.CLERK_PUBLISHABLE_KEY) {
 }
 if (!process.env.ANTHROPIC_API_KEY) {
   console.warn(
-    "ANTHROPIC_API_KEY not set — auth, dashboard, and companion all work, but /food/analyze will fail until it's configured."
+    "ANTHROPIC_API_KEY not set — auth, dashboard, and companion all work, and /food/analyze (photo scan) now runs a local CLIP model with no API key needed, but /food/analyze-text will fail until it's configured."
   );
 }
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -47,4 +48,21 @@ app.use((err, _req, res, _next) => {
 });
 
 const port = process.env.PORT || 4000;
-app.listen(port, () => console.log(`Backend listening on http://localhost:${port}`));
+
+// Pre-warm the local CLIP classifier BEFORE accepting requests, not
+// concurrently with app.listen(). Deliberate choice (plan Step 2): this
+// project's client `request()` wrapper (app/src/lib/api.ts) has no
+// timeout/AbortController, so an unwarmed first request would hang the
+// user's UI for the ~35s model-load spike measured in the CLIP spike,
+// rather than failing fast — better to pay that cost once at boot, out of
+// band from any real user request.
+getClassifier()
+  .catch((err) => {
+    console.error(
+      "Local CLIP model failed to pre-warm — /food/analyze will 502 on every request until this is fixed:",
+      err
+    );
+  })
+  .finally(() => {
+    app.listen(port, () => console.log(`Backend listening on http://localhost:${port}`));
+  });

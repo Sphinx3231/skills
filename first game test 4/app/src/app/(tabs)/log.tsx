@@ -58,6 +58,16 @@ export default function LogScreen() {
   // permission request / flow start.
   const voiceStartInFlightRef = useRef(false);
   const barcodeStartInFlightRef = useRef(false);
+  // The true, original model response, captured once per scan at the same
+  // moment `result` is first set (pickAndAnalyze/submitDescription/
+  // lookupBarcode) — independent of `result`'s subsequent edits via the
+  // review card's TextInput/NumberField onChange handlers. `confirmSave()`
+  // sends THIS as `aiRawResponse`, not `result`, so `food_logs.ai_raw_response`
+  // stores what the model actually guessed rather than the user's post-edit
+  // values (ticket 010 client delta #2). Cleared alongside `result` in
+  // reset()/finishLogging() so a stale value from a prior scan can't leak
+  // into the next one.
+  const rawResultRef = useRef<api.FoodAnalysis | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -88,6 +98,7 @@ export default function LogScreen() {
     try {
       const analysis = await api.analyzePhoto(prepared);
       setLogSource('ai');
+      rawResultRef.current = analysis;
       setResult(analysis);
       setStep('review');
     } catch (err) {
@@ -111,6 +122,7 @@ export default function LogScreen() {
     try {
       const analysis = await api.analyzeText(description);
       setLogSource('ai');
+      rawResultRef.current = analysis;
       setResult(analysis);
       setStep('review');
     } catch (err) {
@@ -216,6 +228,7 @@ export default function LogScreen() {
     try {
       const analysis = await api.lookupBarcode(code);
       setLogSource('barcode');
+      rawResultRef.current = analysis;
       setResult(analysis);
       setStep('review');
     } catch (err) {
@@ -228,6 +241,7 @@ export default function LogScreen() {
   function finishLogging() {
     setPhotoUri(null);
     setResult(null);
+    rawResultRef.current = null;
     setError(null);
     if (shouldPlayFoxMoment(reduceMotion)) {
       setStep('logged');
@@ -239,6 +253,18 @@ export default function LogScreen() {
 
   async function confirmSave() {
     if (!result) return;
+    // Blank-foodName save guard (ticket 010 client delta #1): without this,
+    // tapping Save with an empty foodName (the local CLIP model's honest
+    // "couldn't identify this" result, or a manually cleared field) reached
+    // the backend and came back as a raw `400 "foodName and calories are
+    // required"` string in the review card's error area — a validation
+    // message standing in for "we couldn't identify your photo." Catch it
+    // client-side with a clear human message instead of round-tripping.
+    if (!result.foodName.trim()) {
+      setError('Enter a food name before saving.');
+      return;
+    }
+    setError(null);
     setStep('saving');
     try {
       await api.createLog({
@@ -248,7 +274,9 @@ export default function LogScreen() {
         carbsG: result.carbsG,
         fatG: result.fatG,
         source: logSource,
-        aiRawResponse: result,
+        // The true original model response, not `result` (which the review
+        // card's edit handlers mutate) — see rawResultRef's declaration.
+        aiRawResponse: rawResultRef.current ?? result,
       });
       finishLogging();
     } catch (err) {
@@ -280,6 +308,7 @@ export default function LogScreen() {
     setStep('idle');
     setPhotoUri(null);
     setResult(null);
+    rawResultRef.current = null;
     setError(null);
     setTranscript('');
   }

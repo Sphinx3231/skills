@@ -14,6 +14,12 @@ Respond with ONLY a JSON object (no markdown fences, no extra text) in this exac
 
 Estimate a single serving as best you can tell from the description. If multiple items are described, combine them into one entry with a combined foodName (e.g. "Grilled chicken with rice and broccoli"). If the description does not describe food at all, set foodName to "Unknown" and confidence to "low".`;
 
+// SUPERSEDED (ticket 010): POST /food/analyze now calls
+// local-food-analysis.js's analyzeFoodPhotoLocally (a free, self-hosted
+// CLIP zero-shot classifier) instead of this function, so photo scans no
+// longer cost a per-call Claude API fee. Left in place rather than deleted
+// per the ticket's non-goals — not called from any route as of this
+// change, kept for reference / possible future use.
 export async function analyzeFoodPhoto({ base64Image, mediaType }) {
   const message = await anthropic.messages.create({
     model: "claude-sonnet-5",

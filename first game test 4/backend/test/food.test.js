@@ -12,6 +12,7 @@ import request from "supertest";
 
 let mockedUserId = "user_food1";
 let analyzeShouldFail = false;
+let analyzeShouldReturnNoFood = false;
 let analyzeTextShouldFail = false;
 let analyzeTextCallCount = 0;
 
@@ -23,19 +24,13 @@ mock.module("@clerk/express", {
   },
 });
 
+// The photo-scan path no longer calls anthropic.js at all (ticket 010), but
+// this mock is kept alongside the local-food-analysis.js one below since
+// analyzeFoodText still does.
 mock.module("../src/lib/anthropic.js", {
   exports: {
     analyzeFoodPhoto: async () => {
-      if (analyzeShouldFail) throw new Error("model unavailable");
-      return {
-        foodName: "Grilled chicken with rice",
-        calories: 520,
-        proteinG: 40,
-        carbsG: 55,
-        fatG: 12,
-        confidence: "high",
-        notes: "",
-      };
+      throw new Error("analyzeFoodPhoto should not be called by the route anymore (ticket 010)");
     },
     analyzeFoodText: async () => {
       analyzeTextCallCount += 1;
@@ -47,6 +42,35 @@ mock.module("../src/lib/anthropic.js", {
         carbsG: 40,
         fatG: 5,
         confidence: "medium",
+        notes: "",
+      };
+    },
+  },
+});
+
+mock.module("../src/lib/local-food-analysis.js", {
+  exports: {
+    analyzeFoodPhotoLocally: async () => {
+      if (analyzeShouldFail) throw new Error("model unavailable");
+      if (analyzeShouldReturnNoFood) {
+        return {
+          foodName: "",
+          calories: 0,
+          proteinG: 0,
+          carbsG: 0,
+          fatG: 0,
+          confidence: "low",
+          notes: "",
+          caveat: "Couldn't identify a food in this photo — enter the details yourself, or try a clearer photo.",
+        };
+      }
+      return {
+        foodName: "Grilled chicken with rice",
+        calories: 520,
+        proteinG: 40,
+        carbsG: 55,
+        fatG: 12,
+        confidence: "high",
         notes: "",
       };
     },
@@ -208,6 +232,19 @@ test("POST /food/analyze returns AI results for a valid photo while trialing", a
     .attach("photo", Buffer.from([0xff, 0xd8, 0xff]), { filename: "meal.jpg", contentType: "image/jpeg" });
   assert.strictEqual(res.status, 200);
   assert.strictEqual(res.body.foodName, "Grilled chicken with rice");
+});
+
+test("POST /food/analyze returns 200 (not an error status) for a 'couldn't identify' / anchor-triggered result — a normal, handled outcome under the local model, not a failure", async () => {
+  mockedUserId = "user_food_analyze_nofood";
+  analyzeShouldReturnNoFood = true;
+  const res = await request(app)
+    .post("/food/analyze")
+    .attach("photo", Buffer.from([0xff, 0xd8, 0xff]), { filename: "meal.jpg", contentType: "image/jpeg" });
+  assert.strictEqual(res.status, 200);
+  assert.strictEqual(res.body.foodName, "");
+  assert.strictEqual(res.body.confidence, "low");
+  assert.match(res.body.caveat, /Couldn't identify/);
+  analyzeShouldReturnNoFood = false;
 });
 
 test("POST /food/analyze returns 502 when the model call fails", async () => {

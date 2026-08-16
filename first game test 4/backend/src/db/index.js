@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs";
+import { FOOD_NUTRITION_DATA } from "../data/food-nutrition-data.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -72,7 +73,34 @@ db.exec(`
     equipped_backpack INTEGER NOT NULL DEFAULT 1,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  -- New in ticket 010 (local CLIP food recognition). "label" matches a
+  -- food-candidate-labels.js CANDIDATE_LABELS[].key, never a raw model
+  -- prompt string — see local-food-analysis.js for why that distinction
+  -- matters. Anchor labels never get a row here (filtered out before
+  -- lookup, not looked up and expected to miss).
+  CREATE TABLE IF NOT EXISTS food_nutrition_reference (
+    label TEXT PRIMARY KEY,
+    food_name TEXT NOT NULL,
+    calories INTEGER NOT NULL,
+    protein_g REAL NOT NULL,
+    carbs_g REAL NOT NULL,
+    fat_g REAL NOT NULL,
+    serving_description TEXT NOT NULL
+  );
 `);
+
+// Idempotent (INSERT OR IGNORE): safe to run on every boot, including every
+// DB_PATH=":memory:" test run, with no manual seeding step. Source data is
+// the checked-in output of backend/scripts/build-food-nutrition-data.mjs.
+const seedNutritionRow = db.prepare(
+  `INSERT OR IGNORE INTO food_nutrition_reference
+     (label, food_name, calories, protein_g, carbs_g, fat_g, serving_description)
+   VALUES (@label, @foodName, @calories, @proteinG, @carbsG, @fatG, @servingDescription)`
+);
+for (const row of FOOD_NUTRITION_DATA) {
+  seedNutritionRow.run(row);
+}
 
 export function getOrCreateUser(clerkUserId) {
   db.prepare("INSERT OR IGNORE INTO users (id) VALUES (?)").run(clerkUserId);
