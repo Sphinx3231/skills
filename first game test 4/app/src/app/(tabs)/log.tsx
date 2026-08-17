@@ -356,6 +356,11 @@ export default function LogScreen() {
     }
     setError(null);
     setStep('saving');
+    // Ticket 015: tracked outside React state (a plain local array, not
+    // setState) because it only needs to survive for the lifetime of this
+    // one call — it's read once, in the catch block below, to know which of
+    // the CURRENT `items` already made it to the backend before the failure.
+    const savedKeys: string[] = [];
     try {
       // One food_logs row per confirmed item — reuses the existing
       // single-item api.createLog call in a loop rather than a new batch
@@ -372,14 +377,28 @@ export default function LogScreen() {
           source: 'ai',
           aiRawResponse: item.raw,
         });
+        savedKeys.push(item.key);
       }
       finishLogging();
     } catch (err) {
       // A failure partway through the loop leaves whichever items already
-      // saved as real food_logs rows — there is no rollback. Documented as a
-      // known limitation in the ticket 014 outcome rather than solved here
-      // (see non-goals: no new batch endpoint).
-      setError(err instanceof api.ApiError ? err.message : 'Could not save this entry.');
+      // saved as real food_logs rows — there is no rollback (documented as a
+      // known limitation in the ticket 014 outcome; see non-goals: no new
+      // batch endpoint). Ticket 015: what WAS solved here is the retry-time
+      // duplication that limitation enabled — prune the items that already
+      // saved successfully out of `items` before returning to
+      // 'review-items', so a retap of "Save all N" only ever loops over
+      // items that still need saving, and the count/label on that button
+      // reflects it. The error message also names how many already saved,
+      // so the screen doesn't silently read as "nothing saved yet" when
+      // some items have.
+      setItems((prev) => (prev ? prev.filter((item) => !savedKeys.includes(item.key)) : prev));
+      const message = err instanceof api.ApiError ? err.message : 'Could not save this entry.';
+      setError(
+        savedKeys.length > 0
+          ? `${message} (${savedKeys.length} item${savedKeys.length > 1 ? 's' : ''} already saved and won't be re-saved.)`
+          : message
+      );
       setStep('review-items');
     }
   }
