@@ -59,13 +59,42 @@ describe('classifyFoodPhoto (web)', () => {
 
     const result = await classifyFoodPhoto(photo);
 
-    expect(result.foodName).toBe('Banana');
-    expect(result.calories).toBe(105);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].foodName).toBe('Banana');
+    expect(result.items[0].calories).toBe(105);
     expect(fakeClassifier).toHaveBeenCalledWith(
       photo.uri,
       expect.any(Array),
       expect.objectContaining({ hypothesis_template: '{}' })
     );
+  });
+
+  test('ticket 014: wraps the single CLIP classification as a one-item PhotoAnalysis, carrying its caveat through', async () => {
+    mockedApi.getBillingStatus.mockResolvedValue(activeBilling());
+    const fakeClassifier = jest.fn().mockResolvedValue([
+      { label: 'a photo of a banana', score: 0.95 },
+      { label: 'a photo of an apple', score: 0.2 },
+    ]);
+    window.__foxbiteClipPipelineReady = Promise.resolve(fakeClassifier);
+
+    const result = await classifyFoodPhoto(photo);
+
+    expect(result.items[0].portionDescription).toBe('');
+    expect(result.items[0].caveat).toMatch(/database default/i);
+  });
+
+  test('ticket 014: a not-clearly-food ("couldn\'t identify") classification wraps to zero items, not one empty-named item', async () => {
+    mockedApi.getBillingStatus.mockResolvedValue(activeBilling());
+    // A reject-anchor top-1 label always classifies to the empty-foodName
+    // NO_FOOD_RESULT in analyzeFoodClassification (see food-recognition-shared.ts).
+    const fakeClassifier = jest
+      .fn()
+      .mockResolvedValue([{ label: 'a photo that does not contain any food', score: 0.9 }]);
+    window.__foxbiteClipPipelineReady = Promise.resolve(fakeClassifier);
+
+    const result = await classifyFoodPhoto(photo);
+
+    expect(result.items).toEqual([]);
   });
 
   test('REGRESSION: a trialing (free-trial, not yet expired) user is NOT blocked — the check is `status === \'expired\'`, not `status !== \'active\'`', async () => {

@@ -24,13 +24,41 @@ mock.module("@clerk/express", {
   },
 });
 
-// The photo-scan path no longer calls anthropic.js at all (ticket 010), but
-// this mock is kept alongside the local-food-analysis.js one below since
-// analyzeFoodText still does.
+// Ticket 014: POST /food/analyze calls anthropic.js's
+// analyzeFoodPhotoMultiItem again (revived from ticket 010's "superseded"
+// state), returning multiple separately-identified items instead of one
+// merged entry. local-food-analysis.js (ticket 011's CLIP pipeline) is no
+// longer called from this route at all — it stays in the codebase, covered
+// by its own untouched test file, but is not exercised here anymore.
 mock.module("../src/lib/anthropic.js", {
   exports: {
-    analyzeFoodPhoto: async () => {
-      throw new Error("analyzeFoodPhoto should not be called by the route anymore (ticket 010)");
+    analyzeFoodPhotoMultiItem: async () => {
+      if (analyzeShouldFail) throw new Error("model unavailable");
+      if (analyzeShouldReturnNoFood) return { items: [] };
+      return {
+        items: [
+          {
+            foodName: "Grilled chicken",
+            portionDescription: "a medium fillet, ~150g",
+            calories: 260,
+            proteinG: 40,
+            carbsG: 0,
+            fatG: 10,
+            confidence: "high",
+            notes: "",
+          },
+          {
+            foodName: "Steamed rice",
+            portionDescription: "about 1 cup",
+            calories: 205,
+            proteinG: 4,
+            carbsG: 45,
+            fatG: 0,
+            confidence: "medium",
+            notes: "",
+          },
+        ],
+      };
     },
     analyzeFoodText: async () => {
       analyzeTextCallCount += 1;
@@ -42,35 +70,6 @@ mock.module("../src/lib/anthropic.js", {
         carbsG: 40,
         fatG: 5,
         confidence: "medium",
-        notes: "",
-      };
-    },
-  },
-});
-
-mock.module("../src/lib/local-food-analysis.js", {
-  exports: {
-    analyzeFoodPhotoLocally: async () => {
-      if (analyzeShouldFail) throw new Error("model unavailable");
-      if (analyzeShouldReturnNoFood) {
-        return {
-          foodName: "",
-          calories: 0,
-          proteinG: 0,
-          carbsG: 0,
-          fatG: 0,
-          confidence: "low",
-          notes: "",
-          caveat: "Couldn't identify a food in this photo — enter the details yourself, or try a clearer photo.",
-        };
-      }
-      return {
-        foodName: "Grilled chicken with rice",
-        calories: 520,
-        proteinG: 40,
-        carbsG: 55,
-        fatG: 12,
-        confidence: "high",
         notes: "",
       };
     },
@@ -224,26 +223,31 @@ test("POST /food/analyze rejects missing photo and bad mimetype", async () => {
   assert.strictEqual(badType.status, 400);
 });
 
-test("POST /food/analyze returns AI results for a valid photo while trialing", async () => {
+test("POST /food/analyze returns multiple separate items for a valid multi-item photo while trialing", async () => {
   mockedUserId = "user_food_analyze_ok";
   analyzeShouldFail = false;
   const res = await request(app)
     .post("/food/analyze")
     .attach("photo", Buffer.from([0xff, 0xd8, 0xff]), { filename: "meal.jpg", contentType: "image/jpeg" });
   assert.strictEqual(res.status, 200);
-  assert.strictEqual(res.body.foodName, "Grilled chicken with rice");
+  assert.ok(Array.isArray(res.body.items));
+  assert.strictEqual(res.body.items.length, 2);
+  assert.strictEqual(res.body.items[0].foodName, "Grilled chicken");
+  assert.strictEqual(res.body.items[0].portionDescription, "a medium fillet, ~150g");
+  assert.strictEqual(res.body.items[0].confidence, "high");
+  assert.strictEqual(res.body.items[1].foodName, "Steamed rice");
+  assert.strictEqual(res.body.items[1].portionDescription, "about 1 cup");
+  assert.strictEqual(res.body.items[1].confidence, "medium");
 });
 
-test("POST /food/analyze returns 200 (not an error status) for a 'couldn't identify' / anchor-triggered result — a normal, handled outcome under the local model, not a failure", async () => {
+test("POST /food/analyze returns 200 with an empty items array (not an error status, no fabricated guess) when no food is identifiable", async () => {
   mockedUserId = "user_food_analyze_nofood";
   analyzeShouldReturnNoFood = true;
   const res = await request(app)
     .post("/food/analyze")
     .attach("photo", Buffer.from([0xff, 0xd8, 0xff]), { filename: "meal.jpg", contentType: "image/jpeg" });
   assert.strictEqual(res.status, 200);
-  assert.strictEqual(res.body.foodName, "");
-  assert.strictEqual(res.body.confidence, "low");
-  assert.match(res.body.caveat, /Couldn't identify/);
+  assert.deepStrictEqual(res.body.items, []);
   analyzeShouldReturnNoFood = false;
 });
 

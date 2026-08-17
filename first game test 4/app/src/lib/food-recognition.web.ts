@@ -22,7 +22,11 @@
 // object/Promise assignment), not mocking a module.
 import * as api from './api';
 import { CANDIDATE_LABELS } from './food-candidate-labels';
-import { analyzeFoodClassification, type ClassificationResult } from './food-recognition-shared';
+import {
+  analyzeFoodClassification,
+  type ClassificationResult,
+  type FoodAnalysisResult,
+} from './food-recognition-shared';
 
 type ClipClassifier = (
   image: string,
@@ -86,7 +90,37 @@ async function assertActiveAccess(): Promise<void> {
   }
 }
 
-export async function classifyFoodPhoto(photo: { uri: string; name: string; type: string }): Promise<api.FoodAnalysis> {
+// Ticket 014 changed log.tsx's shared review UI to expect `{ items: [...] }`
+// from every classifyFoodPhoto() implementation, native and web alike — this
+// module's own CLIP scoring/decision logic (analyzeFoodClassification, in
+// food-recognition-shared.ts) is untouched and still only ever produces one
+// result, so this just wraps that single result as a one-item array (or zero
+// items for its existing "couldn't identify anything" empty-foodName case)
+// rather than changing what gets identified.
+function toPhotoAnalysis(result: FoodAnalysisResult): api.PhotoAnalysis {
+  if (!result.foodName) return { items: [] };
+  return {
+    items: [
+      {
+        foodName: result.foodName,
+        // The local CLIP pipeline has no natural-language portion estimate
+        // of its own (its nutrition rows are one-standard-serving database
+        // defaults, already called out via `caveat` below) — left blank
+        // rather than fabricating one.
+        portionDescription: '',
+        calories: result.calories,
+        proteinG: result.proteinG,
+        carbsG: result.carbsG,
+        fatG: result.fatG,
+        confidence: result.confidence,
+        notes: result.notes,
+        caveat: result.caveat ?? null,
+      },
+    ],
+  };
+}
+
+export async function classifyFoodPhoto(photo: { uri: string; name: string; type: string }): Promise<api.PhotoAnalysis> {
   await assertActiveAccess();
 
   let results: ClassificationResult[];
@@ -128,7 +162,7 @@ export async function classifyFoodPhoto(photo: { uri: string; name: string; type
     );
   }
 
-  return analyzeFoodClassification(results);
+  return toPhotoAnalysis(analyzeFoodClassification(results));
 }
 
 export type ModelLoadProgress =

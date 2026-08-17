@@ -1,8 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { db } from "../db/index.js";
-import { analyzeFoodText } from "../lib/anthropic.js";
-import { analyzeFoodPhotoLocally } from "../lib/local-food-analysis.js";
+import { analyzeFoodPhotoMultiItem, analyzeFoodText } from "../lib/anthropic.js";
 import { requireAuth } from "../middleware/auth.js";
 import { computeBillingStatus } from "../lib/billing.js";
 
@@ -112,17 +111,17 @@ foodRouter.post("/analyze", requireActiveAccess, upload.single("photo"), async (
   }
 
   try {
-    // Local CLIP model — takes the raw multer buffer directly, no base64
-    // round trip (the Claude vision API this replaced needed base64; the
-    // local pipeline wraps the buffer in a Blob itself, see
-    // local-food-recognition.js).
-    const result = await analyzeFoodPhotoLocally({
-      buffer: req.file.buffer,
-      mimetype: req.file.mimetype,
+    // Claude vision (ticket 014) — revived from ticket 010's "superseded"
+    // state, now returning multiple separately-identified items instead of
+    // one merged entry. Needs the raw bytes as base64 (unlike the local CLIP
+    // pipeline this replaced, which took the multer buffer directly).
+    const result = await analyzeFoodPhotoMultiItem({
+      base64Image: req.file.buffer.toString("base64"),
+      mediaType: req.file.mimetype,
     });
     res.json(result);
   } catch (err) {
-    console.error("analyzeFoodPhotoLocally failed:", err);
+    console.error("analyzeFoodPhotoMultiItem failed:", err);
     res.status(502).json({ error: "Could not analyze photo, try again" });
   }
 });

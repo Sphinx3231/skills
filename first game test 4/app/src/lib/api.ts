@@ -57,11 +57,35 @@ export type FoodAnalysis = {
   caveat?: string | null;
 };
 
+// Ticket 014: POST /food/analyze returns multiple separately-identified
+// items instead of one merged FoodAnalysis — each with its own natural-
+// language portion estimate (there's no depth/reference-object data to
+// measure a precise amount, same estimate-only ceiling as analyzeText's
+// output). `caveat` is not part of the backend's Claude-vision contract
+// (that's an Open-Food-Facts/local-CLIP-specific field) but is kept here,
+// optional, so food-recognition.web.ts's local pipeline wrapper (which DOES
+// produce one) can still surface it through the same shared item shape.
+export type FoodAnalysisItem = {
+  foodName: string;
+  portionDescription: string;
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  confidence: 'low' | 'medium' | 'high';
+  notes: string;
+  caveat?: string | null;
+};
+
+export type PhotoAnalysis = {
+  items: FoodAnalysisItem[];
+};
+
 export function analyzePhoto(photo: { uri: string; name: string; type: string }) {
   const form = new FormData();
   // @ts-expect-error React Native's FormData accepts this uri/name/type shape
   form.append('photo', { uri: photo.uri, name: photo.name, type: photo.type });
-  return request<FoodAnalysis>('/food/analyze', { method: 'POST', body: form });
+  return request<PhotoAnalysis>('/food/analyze', { method: 'POST', body: form });
 }
 
 export function analyzeText(description: string) {

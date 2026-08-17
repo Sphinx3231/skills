@@ -35,7 +35,17 @@ import {
   type ExpoSpeechRecognitionErrorEvent,
 } from '@/lib/speech-recognition';
 
-type Step = 'idle' | 'listening' | 'scanning' | 'analyzing' | 'review' | 'saving' | 'logged';
+type Step = 'idle' | 'listening' | 'scanning' | 'analyzing' | 'review' | 'review-items' | 'saving' | 'logged';
+
+// Ticket 014: a photo scan's confirm-before-log step now reviews an array of
+// separately identified items (not the single merged `api.FoodAnalysis`
+// voice/barcode still use) — `key` is a stable per-item React key surviving
+// edits/removal, and `raw` is that item's untouched original model response,
+// captured once at scan time, so an edit to `foodName`/`calories`/etc. below
+// never mutates what gets stored as that row's `food_logs.ai_raw_response`
+// (same "don't let post-edit values overwrite the raw capture" rule ticket
+// 010 established for the single-item flow's `rawResultRef`).
+type ReviewItem = api.FoodAnalysisItem & { key: string; raw: api.FoodAnalysisItem };
 
 export default function LogScreen() {
   const theme = useTheme();
@@ -43,6 +53,9 @@ export default function LogScreen() {
   const [step, setStep] = useState<Step>('idle');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [result, setResult] = useState<api.FoodAnalysis | null>(null);
+  // Photo-scan-only (ticket 014) — voice/barcode keep using `result` above,
+  // unchanged.
+  const [items, setItems] = useState<ReviewItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [paywallBilling, setPaywallBilling] = useState<api.BillingStatus | null>(null);
   // Web-only in practice: onModelLoadProgress's native implementation is a
@@ -107,9 +120,8 @@ export default function LogScreen() {
     try {
       const analysis = await classifyFoodPhoto(prepared);
       setLogSource('ai');
-      rawResultRef.current = analysis;
-      setResult(analysis);
-      setStep('review');
+      setItems(analysis.items.map((item, index) => ({ ...item, key: `item-${index}`, raw: item })));
+      setStep('review-items');
     } catch (err) {
       if (err instanceof api.ApiError && err.status === 402) {
         setPaywallBilling((err.body as { billing: api.BillingStatus }).billing);
@@ -250,6 +262,7 @@ export default function LogScreen() {
   function finishLogging() {
     setPhotoUri(null);
     setResult(null);
+    setItems(null);
     rawResultRef.current = null;
     setError(null);
     if (shouldPlayFoxMoment(reduceMotion)) {
@@ -317,9 +330,58 @@ export default function LogScreen() {
     setStep('idle');
     setPhotoUri(null);
     setResult(null);
+    setItems(null);
     rawResultRef.current = null;
     setError(null);
     setTranscript('');
+  }
+
+  // Ticket 014 — items-array counterparts to updateItem/removeItem/
+  // confirmSaveItems below, used only by the photo-scan multi-item review
+  // step ('review-items'). Voice/barcode's single-item confirmSave() above
+  // is untouched.
+  function updateItem(key: string, patch: Partial<api.FoodAnalysisItem>) {
+    setItems((prev) => (prev ? prev.map((item) => (item.key === key ? { ...item, ...patch } : item)) : prev));
+  }
+
+  function removeItem(key: string) {
+    setItems((prev) => (prev ? prev.filter((item) => item.key !== key) : prev));
+  }
+
+  async function confirmSaveItems() {
+    if (!items || items.length === 0) return;
+    if (items.some((item) => !item.foodName.trim())) {
+      setError('Enter a food name for every item before saving.');
+      return;
+    }
+    setError(null);
+    setStep('saving');
+    try {
+      // One food_logs row per confirmed item — reuses the existing
+      // single-item api.createLog call in a loop rather than a new batch
+      // endpoint (ticket 014 scope), since food_logs already supports
+      // arbitrary per-row inserts and there's no meaningful atomicity
+      // requirement across a multi-item scan's rows.
+      for (const item of items) {
+        await api.createLog({
+          foodName: item.foodName,
+          calories: item.calories,
+          proteinG: item.proteinG,
+          carbsG: item.carbsG,
+          fatG: item.fatG,
+          source: 'ai',
+          aiRawResponse: item.raw,
+        });
+      }
+      finishLogging();
+    } catch (err) {
+      // A failure partway through the loop leaves whichever items already
+      // saved as real food_logs rows — there is no rollback. Documented as a
+      // known limitation in the ticket 014 outcome rather than solved here
+      // (see non-goals: no new batch endpoint).
+      setError(err instanceof api.ApiError ? err.message : 'Could not save this entry.');
+      setStep('review-items');
+    }
   }
 
   function cancelListening() {
@@ -541,6 +603,114 @@ export default function LogScreen() {
               <ThemedText type="small" style={styles.error}>
                 {error}
               </ThemedText>
+            )}
+          </ThemedView>
+        )}
+
+        {step === 'review-items' && items && (
+          <ThemedView type="backgroundElement" style={[styles.reviewCard, CardShadow]}>
+            {items.length === 0 ? (
+              <>
+                <ThemedText type="small" style={styles.lowConfidence}>
+                  Couldn't identify any food in this photo — try a clearer photo, or log manually.
+                </ThemedText>
+                <ThemedView style={styles.reviewActions}>
+                  <PressableScale style={styles.secondaryButton} onPress={reset}>
+                    <ThemedText themeColor="text" style={styles.secondaryButtonText}>
+                      Discard
+                    </ThemedText>
+                  </PressableScale>
+                </ThemedView>
+              </>
+            ) : (
+              <>
+                {items.map((item, index) => (
+                  <ThemedView key={item.key} style={styles.itemCard}>
+                    <ThemedView style={styles.itemHeaderRow}>
+                      <ThemedText type="smallBold">Item {index + 1}</ThemedText>
+                      <PressableScale
+                        onPress={() => removeItem(item.key)}
+                        hitSlop={8}
+                        accessibilityLabel={`Remove item ${index + 1}`}>
+                        <Ionicons name="close-circle" size={20} color={theme.textSecondary} />
+                      </PressableScale>
+                    </ThemedView>
+                    {item.confidence === 'low' && (
+                      <ThemedText type="small" style={styles.lowConfidence}>
+                        Low confidence — double-check these numbers before saving.
+                      </ThemedText>
+                    )}
+                    {!!item.caveat && (
+                      <ThemedText type="small" style={styles.lowConfidence}>
+                        {item.caveat}
+                      </ThemedText>
+                    )}
+                    <Field label="Food">
+                      <TextInput
+                        value={item.foodName}
+                        onChangeText={(v) => updateItem(item.key, { foodName: v })}
+                        style={[styles.input, { color: theme.text, borderColor: theme.backgroundSelected }]}
+                      />
+                    </Field>
+                    <Field label="Portion">
+                      <TextInput
+                        value={item.portionDescription}
+                        onChangeText={(v) => updateItem(item.key, { portionDescription: v })}
+                        style={[styles.input, { color: theme.text, borderColor: theme.backgroundSelected }]}
+                      />
+                    </Field>
+                    <ThemedView style={styles.numberRow}>
+                      <NumberField
+                        label="Calories"
+                        value={item.calories}
+                        onChange={(v) => updateItem(item.key, { calories: v })}
+                      />
+                      <NumberField
+                        label="Protein (g)"
+                        value={item.proteinG}
+                        onChange={(v) => updateItem(item.key, { proteinG: v })}
+                      />
+                    </ThemedView>
+                    <ThemedView style={styles.numberRow}>
+                      <NumberField
+                        label="Carbs (g)"
+                        value={item.carbsG}
+                        onChange={(v) => updateItem(item.key, { carbsG: v })}
+                      />
+                      <NumberField
+                        label="Fat (g)"
+                        value={item.fatG}
+                        onChange={(v) => updateItem(item.key, { fatG: v })}
+                      />
+                    </ThemedView>
+                    {!!item.notes && (
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {item.notes}
+                      </ThemedText>
+                    )}
+                  </ThemedView>
+                ))}
+
+                <ThemedView style={styles.reviewActions}>
+                  <PressableScale style={styles.secondaryButton} onPress={reset}>
+                    <ThemedText themeColor="text" style={styles.secondaryButtonText}>
+                      Discard
+                    </ThemedText>
+                  </PressableScale>
+                  <PressableScale
+                    style={[styles.primaryButton, { backgroundColor: theme.accent }]}
+                    onPress={confirmSaveItems}>
+                    <ThemedText style={styles.primaryButtonText}>
+                      {items.length > 1 ? `Save all ${items.length}` : 'Save to today'}
+                    </ThemedText>
+                  </PressableScale>
+                </ThemedView>
+                {error && (
+                  <ThemedText type="small" style={styles.error}>
+                    {error}
+                  </ThemedText>
+                )}
+              </>
             )}
           </ThemedView>
         )}
@@ -777,6 +947,8 @@ const styles = StyleSheet.create({
   cameraView: { width: '100%', aspectRatio: 1, borderRadius: 20, overflow: 'hidden' },
   scanHint: { textAlign: 'center' },
   reviewCard: { borderRadius: 24, padding: Spacing.four, gap: Spacing.three },
+  itemCard: { gap: Spacing.two, paddingBottom: Spacing.two, borderBottomWidth: 1, borderBottomColor: '#8883' },
+  itemHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   lowConfidence: { color: '#a9781a' },
   field: { gap: 4 },
   input: {
