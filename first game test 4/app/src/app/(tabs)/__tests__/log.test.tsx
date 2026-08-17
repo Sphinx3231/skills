@@ -409,6 +409,54 @@ describe('LogScreen — analyze + review flow', () => {
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'), { timeout: 3000 });
   });
 
+  test("ticket 015: retrying after a partial multi-item save failure does not re-save the item(s) that already succeeded", async () => {
+    mockedPicker.launchCameraAsync.mockResolvedValue({ canceled: false, assets: [asset] } as any);
+    mockedApi.analyzePhoto.mockResolvedValue(multiItemPhotoAnalysis);
+    // First attempt: item 1 ("Grilled chicken") saves fine, item 2
+    // ("Steamed rice") fails partway through the loop.
+    mockedApi.createLog
+      .mockResolvedValueOnce({} as api.FoodLog)
+      .mockRejectedValueOnce(new api.ApiError(500, 'Could not save this entry.'));
+
+    await render(<LogScreen />);
+    await fireEvent.press(screen.getByText('Snap & Track'));
+    await waitFor(() => expect(screen.getByText('Save all 2')).toBeTruthy());
+
+    await fireEvent.press(screen.getByText('Save all 2'));
+
+    await waitFor(() => expect(mockedApi.createLog).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(
+        screen.getByText("Could not save this entry. (1 item already saved and won't be re-saved.)")
+      ).toBeTruthy()
+    );
+
+    // The already-saved item must be pruned from the review screen: only
+    // the still-pending item remains, so the button reverts to the
+    // singular label and there is nothing left to re-submit for item 1.
+    expect(screen.queryByDisplayValue('Grilled chicken')).toBeNull();
+    expect(screen.getByDisplayValue('Steamed rice')).toBeTruthy();
+    expect(screen.getByText('Save to today')).toBeTruthy();
+    expect(screen.queryByText(/^Save all/)).toBeNull();
+
+    // Second attempt (retry): only the remaining item should be submitted —
+    // createLog must NOT be called again for "Grilled chicken".
+    mockedApi.createLog.mockResolvedValueOnce({} as api.FoodLog);
+    await fireEvent.press(screen.getByText('Save to today'));
+
+    await waitFor(() => expect(mockedApi.createLog).toHaveBeenCalledTimes(3));
+    expect(mockedApi.createLog).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ foodName: 'Steamed rice', calories: 205, source: 'ai' })
+    );
+    // Never re-submitted for the item that already succeeded on attempt 1.
+    expect(mockedApi.createLog).not.toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ foodName: 'Grilled chicken' })
+    );
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'), { timeout: 3000 });
+  });
+
   test('ticket 014: a photo with no identifiable food shows a clear message with no editable fields and no Save button', async () => {
     mockedPicker.launchCameraAsync.mockResolvedValue({ canceled: false, assets: [asset] } as any);
     mockedApi.analyzePhoto.mockResolvedValue({ items: [] });
