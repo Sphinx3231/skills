@@ -22,14 +22,8 @@ mock.module("@clerk/express", {
 
 mock.module("../src/lib/anthropic.js", {
   exports: {
-    analyzeFoodPhoto: async () => ({}),
+    analyzeFoodPhotoMultiItem: async () => ({ items: [] }),
     analyzeFoodText: async () => ({}),
-  },
-});
-
-mock.module("../src/lib/local-food-analysis.js", {
-  exports: {
-    analyzeFoodPhotoLocally: async () => ({}),
   },
 });
 

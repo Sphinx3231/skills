@@ -16,14 +16,19 @@ const photo = { uri: 'file://photo.jpg', name: 'photo.jpg', type: 'image/jpeg' }
 
 describe('classifyFoodPhoto (native)', () => {
   test('forwards directly to api.analyzePhoto with no transformation', async () => {
-    const analysis: api.FoodAnalysis = {
-      foodName: 'Pizza',
-      calories: 285,
-      proteinG: 12,
-      carbsG: 36,
-      fatG: 10,
-      confidence: 'high',
-      notes: '',
+    const analysis: api.PhotoAnalysis = {
+      items: [
+        {
+          foodName: 'Pizza',
+          portionDescription: 'about 2 slices',
+          calories: 285,
+          proteinG: 12,
+          carbsG: 36,
+          fatG: 10,
+          confidence: 'high',
+          notes: '',
+        },
+      ],
     };
     mockedApi.analyzePhoto.mockResolvedValue(analysis);
 

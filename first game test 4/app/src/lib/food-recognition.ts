@@ -12,7 +12,7 @@ import * as api from './api';
 // actually changes for this ticket. Ticket 012 will later swap mobile onto
 // a real on-device implementation by replacing ONLY this file's contents —
 // zero log.tsx churn either time.
-export function classifyFoodPhoto(photo: { uri: string; name: string; type: string }): Promise<api.FoodAnalysis> {
+export function classifyFoodPhoto(photo: { uri: string; name: string; type: string }): Promise<api.PhotoAnalysis> {
   return api.analyzePhoto(photo);
 }
 
