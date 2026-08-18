@@ -4,10 +4,22 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "spike:stdin-limit": "tsx spikes/stdin-limit-spike.ts"
+    "spike:stdin-limit": "tsx spikes/stdin-limit-spike.ts",
+    "cli": "tsx src/cli.ts",
+    "test:unit": "vitest run tests/unit",
+    "test:functional": "vitest run tests/functional",
+    "test:integration": "vitest run tests/integration"
+  },
+  "dependencies": {
+    "cross-spawn": "^7.0.6",
+    "which": "^2.0.2"
   },
   "devDependencies": {
+    "@types/cross-spawn": "^6.0.6",
+    "@types/node": "^22.10.0",
+    "@types/which": "^2.0.2",
     "tsx": "^4.23.12",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.8"
   }
 }
