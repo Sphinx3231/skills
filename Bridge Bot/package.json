@@ -1,0 +1,13 @@
+{
+  "name": "bridge-bot",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "spike:stdin-limit": "tsx spikes/stdin-limit-spike.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.12",
+    "typescript": "^5.6.0"
+  }
+}
