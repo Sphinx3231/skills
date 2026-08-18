@@ -1,3 +1,14 @@
+// DEPRECATED-IN-PLACE (ticket 019, engine reconciliation audit). This is
+// the backend's own copy of the local CLIP zero-shot classifier (ticket
+// 010/011) — a separate implementation from `app/src/lib/food-recognition.web.ts`,
+// which runs its own in-browser copy of CLIP independently and is still
+// live. This backend copy has had no live caller since ticket 014 reverted
+// `POST /food/analyze` to Claude vision; ticket 017 removed the boot-time
+// `getClassifier()` warm-up this module used to receive. See
+// `local-food-analysis.js`'s matching comment (its sole caller in this
+// codebase) for the full keep/delete reasoning and the safe-to-delete
+// condition — repeated in full there rather than summarized here so either
+// file read alone gives a complete picture.
 import os from "node:os";
 import path from "node:path";
 import { CANDIDATE_LABELS } from "./food-candidate-labels.js";

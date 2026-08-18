@@ -1,3 +1,29 @@
+// DEPRECATED-IN-PLACE (ticket 019, engine reconciliation audit). This
+// module's decision/nutrition-lookup logic for the backend local-CLIP
+// engine has had no live caller since ticket 014 reverted
+// `POST /food/analyze` to Claude vision (`analyzeFoodPhotoMultiItem` in
+// `anthropic.js`) — see `backend/src/routes/food.js` and `index.js`'s own
+// comment at its former warm-up call site for that history. Ticket 017
+// already removed the boot-time warm-up this module's classifier used to
+// get; this comment adds the equivalent statement here, at the source
+// itself, so a reader who opens this file directly (not just index.js)
+// gets the same context.
+//
+// Kept, not deleted: ticket 019's audit found no strong case for deletion —
+// this is a working, independently-tested single-item classifier that a
+// future route could resurrect cheaply (it's how ticket 010/011 originally
+// shipped `/food/analyze` before 014 swapped in Claude vision), and
+// deleting it buys nothing beyond fewer bytes in the repo. Its own test
+// suite (`backend/test/local-food-analysis.test.js`) is left intact and
+// green alongside it.
+//
+// Safe-to-delete condition: this file (and `local-food-recognition.js`,
+// `food-candidate-labels.js` if nothing else needs it) can be deleted, along
+// with its test file, once a future ticket explicitly decides the backend
+// local-CLIP path will never be resurrected — e.g. if Claude vision's
+// per-call cost is judged acceptable long-term and no cost-free fallback is
+// ever wanted. Until that decision is made, this stays as a documented,
+// uncalled reference implementation rather than being deleted by default.
 import { classifyFoodPhoto } from "./local-food-recognition.js";
 import { lookupNutritionByLabel } from "./food-nutrition-db.js";
 import { CANDIDATE_LABELS } from "./food-candidate-labels.js";
