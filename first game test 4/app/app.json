@@ -50,7 +50,8 @@
           "speechRecognitionPermission": "Allow $(PRODUCT_NAME) to use speech recognition for voice logging."
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "react-native-fast-tflite"
     ],
     "experiments": {
       "typedRoutes": true,
